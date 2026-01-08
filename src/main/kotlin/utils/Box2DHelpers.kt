@@ -6,6 +6,7 @@ import org.jbox2d.common.Vec2
 import org.jbox2d.dynamics.Body
 import org.jbox2d.dynamics.BodyDef
 import org.jbox2d.dynamics.BodyType
+import org.jbox2d.dynamics.FixtureDef
 import org.jbox2d.dynamics.World
 import org.jbox2d.dynamics.joints.DistanceJointDef
 import org.jbox2d.dynamics.joints.Joint
@@ -20,9 +21,19 @@ fun createWall(world: World, x: Float, y: Float, halfWidth: Float, halfHeight: F
         type = BodyType.STATIC
     }
     val body = world.createBody(bodyDef)
-    body.createFixture(PolygonShape().apply {
+
+    val wallShape = PolygonShape().apply {
         setAsBox(halfWidth, halfHeight)
-    }, 0f)
+    }
+
+    val fixtureDef = FixtureDef().apply {
+        shape = wallShape
+        density = 0f
+        restitution = 0.5f  // Walls also bounce
+        friction = 0.3f
+    }
+
+    body.createFixture(fixtureDef)
     return body
 }
 
@@ -49,6 +60,16 @@ fun Vec2.toOpenRNDR() = Vector2(x * PHYSICS_SCALE, y * PHYSICS_SCALE)
 fun createSoftBody(world: World, points: List<Vector2>): SoftBody {
     if (points.size < 3) return SoftBody(emptyList(), emptyList(), emptyList())
 
+    // Calculate average distance between consecutive points to size the circles appropriately
+    var totalDist = 0f
+    for (i in points.indices) {
+        val nextIndex = (i + 1) % points.size
+        val dist = (points[nextIndex] - points[i]).length
+        totalDist += dist.toFloat()
+    }
+    val avgDist = totalDist / points.size
+    val circleRadius = 0.05 ;//(avgDist / PHYSICS_SCALE * 0.6f).coerceAtLeast(0.15) // Large enough to overlap
+
     // Create a dynamic body for each point
     val createdBodies = mutableListOf<Body>()
 
@@ -60,12 +81,19 @@ fun createSoftBody(world: World, points: List<Vector2>): SoftBody {
 
         val body = world.createBody(bodyDef)
 
-        // Add a small circle shape
+        // Add circle shape large enough to overlap with neighbors, creating continuous boundaries
         val circle = CircleShape().apply {
-            radius = 0.05f
+            radius = circleRadius.toFloat()
         }
 
-        body.createFixture(circle, 1f) // density = 1
+        val fixtureDef = FixtureDef().apply {
+            shape = circle
+            density = 1f
+            restitution = 0.6f  // Bounciness (0 = no bounce, 1 = perfect bounce)
+            friction = 0.3f     // Surface friction
+        }
+
+        body.createFixture(fixtureDef)
         createdBodies.add(body)
     }
 

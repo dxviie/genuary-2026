@@ -1,9 +1,7 @@
 package genuary
 
-import org.jbox2d.collision.shapes.CircleShape
 import org.jbox2d.common.Vec2
 import org.jbox2d.dynamics.*
-import org.jbox2d.dynamics.joints.Joint
 import org.openrndr.application
 import org.openrndr.color.ColorRGBa
 import org.openrndr.extra.olive.oliveProgram
@@ -11,7 +9,6 @@ import org.openrndr.math.Vector2
 import utils.PHYSICS_SCALE
 import utils.SoftBody
 import utils.createSoftBody
-import utils.createSpringJoint
 import utils.createWall
 import utils.toOpenRNDR
 
@@ -79,6 +76,14 @@ fun main() = application {
             when (event.name) {
                 "d" -> debugMode = !debugMode
                 "p" -> paused = !paused
+                "c" -> {
+                    // Clear the scene
+                    currentPoints.clear()
+                    allShapes.forEach { shape ->
+                        shape.bodies.forEach { body -> world.destroyBody(body) }
+                    }
+                    allShapes.clear()
+                }
             }
         }
 
@@ -164,13 +169,16 @@ fun main() = application {
                     }
                 }
 
-                // Draw bodies
+                // Draw bodies at their actual physics size
                 drawer.fill = ColorRGBa.WHITE
                 drawer.stroke = ColorRGBa.BLACK
                 drawer.strokeWeight = 1.0
                 softBody.bodies.forEach { body ->
                     val pos = body.position.toOpenRNDR()
-                    drawer.circle(pos, 5.0)
+                    // Get the radius from the first fixture (the circle)
+                    val radius = body.fixtureList?.shape?.radius ?: 0.05f
+                    val visualRadius = radius * PHYSICS_SCALE
+                    drawer.circle(pos, visualRadius)
                 }
             }
 
@@ -191,6 +199,11 @@ fun main() = application {
                 drawer.text("DEBUG MODE (press 'd' to disable)", 20.0, yPos)
                 yPos += 25.0
                 drawer.text("Cyan = Edge joints | Magenta = Diagonal joints", 20.0, yPos)
+            }
+
+            // Show controls hint when no shapes exist
+            if (allShapes.isEmpty() && currentPoints.isEmpty()) {
+                drawer.text("Click to create shapes | 'd' = debug | 'p' = pause | 'c' = clear", 20.0, height - 20.0)
             }
         }
     }
