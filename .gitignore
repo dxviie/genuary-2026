@@ -11,3 +11,7 @@ gui-parameters/
 ffmpegOutput.txt
 ShaderError.glsl
 
+# Native libraries
+*.dylib
+*.so
+*.dll

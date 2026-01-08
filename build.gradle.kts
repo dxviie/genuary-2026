@@ -133,6 +133,8 @@ dependencies {
 //    implementation(libs.orsl.extension.raymarching)
 //    implementation(libs.orsl.extension.sdf)
 
+    implementation("org.jbox2d:jbox2d-library:2.2.1.1")
+
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.serialization.core)
     implementation(libs.kotlinx.serialization.json)
