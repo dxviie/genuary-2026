@@ -2,9 +2,11 @@ package genuary
 
 import org.jbox2d.common.Vec2
 import org.jbox2d.dynamics.*
+import org.openrndr.KEY_ESCAPE
 import org.openrndr.application
 import org.openrndr.color.ColorRGBa
 import org.openrndr.extra.olive.oliveProgram
+import org.openrndr.ffmpeg.ScreenRecorder
 import org.openrndr.math.Vector2
 import utils.PHYSICS_SCALE
 import utils.SoftBody
@@ -40,6 +42,12 @@ fun main() = application {
         val closureDistance = 15.0 // Distance threshold to close the shape
         var debugMode = false
         var paused = false
+
+        // keep a reference to the recorder so we can start it and stop it.
+        val recorder = ScreenRecorder().apply {
+            outputToVideo = false
+        }
+        extend(recorder)
 
         mouse.buttonDown.listen {
             val clickPos = mouse.position
@@ -84,6 +92,13 @@ fun main() = application {
                     }
                     allShapes.clear()
                 }
+                "v" -> {
+                    recorder.outputToVideo = !recorder.outputToVideo
+                    println(if (recorder.outputToVideo) "Recording" else "Paused")
+                }
+            }
+            when (event.key) {
+                KEY_ESCAPE -> program.application.exit()
             }
         }
 
