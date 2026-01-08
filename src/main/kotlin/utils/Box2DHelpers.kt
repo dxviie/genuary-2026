@@ -105,13 +105,34 @@ fun createSoftBody(world: World, points: List<Vector2>): SoftBody {
         edgeJoints.add(joint)
     }
 
-    // Create diagonal joints for stability (connect each point to its neighbors' neighbors)
+    // Create diagonal joints for stability
+    // More complex shapes get more internal cross-bracing
     val diagonalJoints = mutableListOf<Joint>()
-    for (i in createdBodies.indices) {
-        val skipIndex = (i + 2) % createdBodies.size
-        // Only create if the shape has enough points to avoid duplicate connections
-        if (createdBodies.size > 3) {
+    val numBodies = createdBodies.size
+
+    // Skip-2 connections (connect to neighbor's neighbor) for shapes with > 3 vertices
+    if (numBodies > 3) {
+        for (i in createdBodies.indices) {
+            val skipIndex = (i + 2) % numBodies
             val joint = createSpringJoint(world, createdBodies[i], createdBodies[skipIndex], frequency = 2f, damping = 0.8f)
+            diagonalJoints.add(joint)
+        }
+    }
+
+    // Skip-3 connections for shapes with > 5 vertices
+    if (numBodies > 5) {
+        for (i in createdBodies.indices) {
+            val skipIndex = (i + 3) % numBodies
+            val joint = createSpringJoint(world, createdBodies[i], createdBodies[skipIndex], frequency = 1.5f, damping = 0.85f)
+            diagonalJoints.add(joint)
+        }
+    }
+
+    // Skip-4 connections for shapes with > 7 vertices
+    if (numBodies > 7) {
+        for (i in createdBodies.indices) {
+            val skipIndex = (i + 4) % numBodies
+            val joint = createSpringJoint(world, createdBodies[i], createdBodies[skipIndex], frequency = 1.2f, damping = 0.9f)
             diagonalJoints.add(joint)
         }
     }
