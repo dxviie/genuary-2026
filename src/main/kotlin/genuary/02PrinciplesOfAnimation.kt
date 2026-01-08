@@ -46,6 +46,7 @@ fun main() = application {
         // keep a reference to the recorder so we can start it and stop it.
         val recorder = ScreenRecorder().apply {
             outputToVideo = false
+            frameRate = 60  // Match the physics step rate
         }
         extend(recorder)
 
@@ -215,10 +216,15 @@ fun main() = application {
                 yPos += 25.0
                 drawer.text("Cyan = Edge joints | Magenta = Diagonal joints", 20.0, yPos)
             }
+            if (recorder.outputToVideo) {
+                drawer.fill = ColorRGBa.RED
+                drawer.text("● RECORDING (press 'v' to stop)", 20.0, yPos)
+                drawer.fill = ColorRGBa.BLACK
+            }
 
             // Show controls hint when no shapes exist
             if (allShapes.isEmpty() && currentPoints.isEmpty()) {
-                drawer.text("Click to create shapes | 'd' = debug | 'p' = pause | 'c' = clear", 20.0, height - 20.0)
+                drawer.text("Click to create shapes | 'd' = debug | 'p' = pause | 'c' = clear | 'v' = record", 20.0, height - 20.0)
             }
         }
     }
