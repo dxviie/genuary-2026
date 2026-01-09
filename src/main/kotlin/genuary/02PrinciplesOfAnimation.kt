@@ -7,6 +7,7 @@ import org.jbox2d.dynamics.joints.MouseJointDef
 import org.openrndr.KEY_ESCAPE
 import org.openrndr.application
 import org.openrndr.color.ColorRGBa
+import org.openrndr.extra.noise.simplex
 import org.openrndr.extra.olive.oliveProgram
 import org.openrndr.ffmpeg.ScreenRecorder
 import org.openrndr.math.Vector2
@@ -16,8 +17,10 @@ import utils.createSoftBody
 import utils.createWall
 import utils.toOpenRNDR
 import utils.toBox2D
+import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
+import kotlin.random.Random
 
 fun main() = application {
     configure {
@@ -54,6 +57,11 @@ fun main() = application {
         var diagonalFrequency = 2f
         var diagonalDamping = 0.8f
 
+        // Blob generation parameters
+        var blobSegments = 8
+        var blobNoiseFactor = 30.0 // Max deviation in pixels
+        var blobRadius = 100.0 // Base radius of blob
+
         // Mouse interaction state
         var mouseJoint: MouseJoint? = null
         var draggedBody: Body? = null
@@ -63,6 +71,39 @@ fun main() = application {
 
         // Slider positions (will be updated during rendering)
         var sliderRegions = mutableMapOf<String, Pair<Double, Double>>() // name -> (y position, slider x start)
+
+        // Button position (will be updated during rendering)
+        var createBlobButtonBounds = Pair(Vector2.ZERO, Vector2.ZERO) // top-left, bottom-right
+
+        // Function to generate a noisy circular blob
+        fun generateBlob(): List<Vector2> {
+            val points = mutableListOf<Vector2>()
+            val numPoints = blobSegments - 1
+            val centerX = width / 2.0
+            val centerY = height / 2.0
+
+            // Use random seed for noise variation
+            val noiseSeed = Random.nextInt(1000000)
+
+            for (i in 0 until numPoints) {
+                val angle = (i.toDouble() / numPoints) * 2.0 * PI
+
+                // Use simplex noise to vary the radius
+                // Create a point on a circle in noise space for smooth variation
+                val noiseX = cos(angle) * 5.0
+                val noiseY = sin(angle) * 5.0
+                val noiseValue = simplex(noiseSeed, Vector2(noiseX, noiseY))
+                val radiusVariation = noiseValue * blobNoiseFactor
+                val radius = blobRadius + radiusVariation
+
+                val x = centerX + cos(angle) * radius
+                val y = centerY + sin(angle) * radius
+
+                points.add(Vector2(x, y))
+            }
+
+            return points
+        }
 
         // Helper function to check if mouse is over a slider
         fun getSliderAt(pos: Vector2): String? {
@@ -88,6 +129,9 @@ fun main() = application {
                 "edgeDamp" -> edgeDamping = normalized.toFloat() // 0-1
                 "diagFreq" -> diagonalFrequency = (1f + normalized * 9f).toFloat() // 1-10 Hz
                 "diagDamp" -> diagonalDamping = normalized.toFloat() // 0-1
+                "blobSegs" -> blobSegments = (4 + (normalized * 16).toInt()).coerceIn(4, 20) // 4-20 segments
+                "blobNoise" -> blobNoiseFactor = normalized * 100.0 // 0-100 pixels
+                "blobRadius" -> blobRadius = 50.0 + normalized * 150.0 // 50-200 pixels
             }
 
             // Update existing joints
@@ -154,6 +198,30 @@ fun main() = application {
             if (event.button.ordinal != 0) return@listen // Only handle left click
 
             val clickPos = mouse.position
+
+            // Check if clicking on create blob button
+            val (btnTopLeft, btnBottomRight) = createBlobButtonBounds
+            if (clickPos.x >= btnTopLeft.x && clickPos.x <= btnBottomRight.x &&
+                clickPos.y >= btnTopLeft.y && clickPos.y <= btnBottomRight.y) {
+                // Create a new blob
+                val blobPoints = generateBlob()
+                val newShape = createSoftBody(world, blobPoints)
+                // Update joint parameters for the new shape
+                newShape.edgeJoints.forEach { joint ->
+                    if (joint is org.jbox2d.dynamics.joints.DistanceJoint) {
+                        joint.frequency = edgeFrequency
+                        joint.dampingRatio = edgeDamping
+                    }
+                }
+                newShape.diagonalJoints.forEach { joint ->
+                    if (joint is org.jbox2d.dynamics.joints.DistanceJoint) {
+                        joint.frequency = diagonalFrequency
+                        joint.dampingRatio = diagonalDamping
+                    }
+                }
+                allShapes.add(newShape)
+                return@listen
+            }
 
             // Check if clicking on a slider in debug mode
             val slider = getSliderAt(clickPos)
@@ -320,7 +388,7 @@ fun main() = application {
             // Update physics only if not paused
             if (!paused) {
                 world.step(1f/60f, 8, 3)
-                world.gravity = Vec2(9.8f * sin(seconds.toFloat()/ 3), 9.8f * cos(seconds.toFloat()/3))
+//                world.gravity = Vec2(9.8f * sin(seconds.toFloat()/ 3), 9.8f * cos(seconds.toFloat()/3))
             }
 
             drawer.clear(ColorRGBa.PINK)
@@ -431,6 +499,25 @@ fun main() = application {
                 drawer.circle(mouse.position, 3.0)
             }
 
+            // Draw "Create Blob" button in top-right corner (always visible)
+            val buttonWidth = 120.0
+            val buttonHeight = 40.0
+            val buttonX = width - buttonWidth - 20.0
+            val buttonY = 20.0
+            createBlobButtonBounds = Pair(
+                Vector2(buttonX, buttonY),
+                Vector2(buttonX + buttonWidth, buttonY + buttonHeight)
+            )
+
+            drawer.fill = ColorRGBa.WHITE
+            drawer.stroke = ColorRGBa.BLACK
+            drawer.strokeWeight = 2.0
+            drawer.rectangle(buttonX, buttonY, buttonWidth, buttonHeight)
+
+            drawer.fill = ColorRGBa.BLACK
+            drawer.stroke = null
+            drawer.text("Create Blob", buttonX + 15.0, buttonY + 25.0)
+
             // Draw status text
             drawer.fill = ColorRGBa.BLACK
             drawer.stroke = null
@@ -518,6 +605,47 @@ fun main() = application {
                     drawer.fill = ColorRGBa.BLUE
                     val diagDampPos = diagonalDamping * sliderWidth
                     drawer.circle(edgeFreqSliderX + diagDampPos, sliderY + 5.0, 7.0)
+                    yPos += 30.0
+
+                    // Blob generation parameters section
+                    drawer.fill = ColorRGBa.BLACK
+                    drawer.text("Blob Generation:", 20.0, yPos)
+                    yPos += 20.0
+
+                    // Blob segments slider
+                    drawer.fill = ColorRGBa.BLACK
+                    drawer.text("Segments: $blobSegments", 20.0, yPos)
+                    sliderY = yPos - 10.0
+                    sliderRegions["blobSegs"] = Pair(yPos - 5.0, edgeFreqSliderX)
+                    drawer.fill = ColorRGBa.GRAY
+                    drawer.rectangle(edgeFreqSliderX, sliderY, sliderWidth, 10.0)
+                    drawer.fill = ColorRGBa.GREEN
+                    val blobSegsPos = ((blobSegments - 4).toDouble() / 16.0) * sliderWidth
+                    drawer.circle(edgeFreqSliderX + blobSegsPos, sliderY + 5.0, 7.0)
+                    yPos += 25.0
+
+                    // Blob noise factor slider
+                    drawer.fill = ColorRGBa.BLACK
+                    drawer.text("Noise Factor: ${String.format("%.1f", blobNoiseFactor)}", 20.0, yPos)
+                    sliderY = yPos - 10.0
+                    sliderRegions["blobNoise"] = Pair(yPos - 5.0, edgeFreqSliderX)
+                    drawer.fill = ColorRGBa.GRAY
+                    drawer.rectangle(edgeFreqSliderX, sliderY, sliderWidth, 10.0)
+                    drawer.fill = ColorRGBa.GREEN
+                    val blobNoisePos = (blobNoiseFactor / 100.0) * sliderWidth
+                    drawer.circle(edgeFreqSliderX + blobNoisePos, sliderY + 5.0, 7.0)
+                    yPos += 25.0
+
+                    // Blob radius slider
+                    drawer.fill = ColorRGBa.BLACK
+                    drawer.text("Blob Radius: ${String.format("%.0f", blobRadius)}", 20.0, yPos)
+                    sliderY = yPos - 10.0
+                    sliderRegions["blobRadius"] = Pair(yPos - 5.0, edgeFreqSliderX)
+                    drawer.fill = ColorRGBa.GRAY
+                    drawer.rectangle(edgeFreqSliderX, sliderY, sliderWidth, 10.0)
+                    drawer.fill = ColorRGBa.GREEN
+                    val blobRadiusPos = ((blobRadius - 50.0) / 150.0) * sliderWidth
+                    drawer.circle(edgeFreqSliderX + blobRadiusPos, sliderY + 5.0, 7.0)
                 }
 
                 // Show controls hint
