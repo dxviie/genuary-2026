@@ -13,6 +13,8 @@ import utils.SoftBody
 import utils.createSoftBody
 import utils.createWall
 import utils.toOpenRNDR
+import kotlin.math.cos
+import kotlin.math.sin
 
 fun main() = application {
     configure {
@@ -107,6 +109,7 @@ fun main() = application {
             // Update physics only if not paused
             if (!paused) {
                 world.step(1f/60f, 8, 3)
+//                world.gravity = Vec2(9.8f * sin(seconds.toFloat()), 9.8f * cos(seconds.toFloat()))
             }
 
             drawer.clear(ColorRGBa.PINK)
