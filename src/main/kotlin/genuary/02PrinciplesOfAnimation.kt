@@ -48,11 +48,64 @@ fun main() = application {
         var debugMode = false
         var paused = false
 
+        // Joint parameters (adjustable in debug mode)
+        var edgeFrequency = 4f
+        var edgeDamping = 0.7f
+        var diagonalFrequency = 2f
+        var diagonalDamping = 0.8f
+
         // Mouse interaction state
         var mouseJoint: MouseJoint? = null
         var draggedBody: Body? = null
         var lastMousePos = mouse.position
         var mouseVelocity = Vector2.ZERO
+        var draggingSlider: String? = null // Track which slider is being dragged
+
+        // Slider positions (will be updated during rendering)
+        var sliderRegions = mutableMapOf<String, Pair<Double, Double>>() // name -> (y position, slider x start)
+
+        // Helper function to check if mouse is over a slider
+        fun getSliderAt(pos: Vector2): String? {
+            if (!debugMode) return null
+            val sliderWidth = 200.0
+            for ((name, region) in sliderRegions) {
+                val (y, x) = region
+                if (pos.x >= x && pos.x <= x + sliderWidth && pos.y >= y - 10 && pos.y <= y + 10) {
+                    return name
+                }
+            }
+            return null
+        }
+
+        // Helper function to update slider value based on mouse position
+        fun updateSliderValue(sliderName: String, mouseX: Double) {
+            val sliderX = sliderRegions[sliderName]?.second ?: return
+            val sliderWidth = 200.0
+            val normalized = ((mouseX - sliderX) / sliderWidth).coerceIn(0.0, 1.0)
+
+            when (sliderName) {
+                "edgeFreq" -> edgeFrequency = (1f + normalized * 9f).toFloat() // 1-10 Hz
+                "edgeDamp" -> edgeDamping = normalized.toFloat() // 0-1
+                "diagFreq" -> diagonalFrequency = (1f + normalized * 9f).toFloat() // 1-10 Hz
+                "diagDamp" -> diagonalDamping = normalized.toFloat() // 0-1
+            }
+
+            // Update existing joints
+            allShapes.forEach { shape ->
+                shape.edgeJoints.forEach { joint ->
+                    if (joint is org.jbox2d.dynamics.joints.DistanceJoint) {
+                        joint.frequency = edgeFrequency
+                        joint.dampingRatio = edgeDamping
+                    }
+                }
+                shape.diagonalJoints.forEach { joint ->
+                    if (joint is org.jbox2d.dynamics.joints.DistanceJoint) {
+                        joint.frequency = diagonalFrequency
+                        joint.dampingRatio = diagonalDamping
+                    }
+                }
+            }
+        }
 
         // Helper function to check if a point is inside a polygon using ray casting
         fun pointInPolygon(point: Vector2, polygon: List<Vector2>): Boolean {
@@ -102,14 +155,35 @@ fun main() = application {
 
             val clickPos = mouse.position
 
+            // Check if clicking on a slider in debug mode
+            val slider = getSliderAt(clickPos)
+            if (slider != null) {
+                draggingSlider = slider
+                updateSliderValue(slider, clickPos.x)
+                return@listen
+            }
+
             // If we're currently drawing, continue with shape creation
             if (currentPoints.isNotEmpty()) {
                 // Check if clicking near the first point to close the shape
                 if (currentPoints.size >= 3) {
                     val distToFirst = (clickPos - currentPoints.first()).length
                     if (distToFirst < closureDistance) {
-                        // Close the shape and create soft body
+                        // Close the shape and create soft body with current parameters
                         val newShape = createSoftBody(world, currentPoints)
+                        // Update joint parameters for the new shape
+                        newShape.edgeJoints.forEach { joint ->
+                            if (joint is org.jbox2d.dynamics.joints.DistanceJoint) {
+                                joint.frequency = edgeFrequency
+                                joint.dampingRatio = edgeDamping
+                            }
+                        }
+                        newShape.diagonalJoints.forEach { joint ->
+                            if (joint is org.jbox2d.dynamics.joints.DistanceJoint) {
+                                joint.frequency = diagonalFrequency
+                                joint.dampingRatio = diagonalDamping
+                            }
+                        }
                         allShapes.add(newShape)
                         currentPoints.clear()
                         return@listen
@@ -145,6 +219,9 @@ fun main() = application {
         mouse.buttonUp.listen { event ->
             if (event.button.ordinal != 0) return@listen // Only handle left click
 
+            // Release slider
+            draggingSlider = null
+
             // Release the mouse joint and apply throw velocity
             mouseJoint?.let { joint ->
                 world.destroyJoint(joint)
@@ -177,8 +254,15 @@ fun main() = application {
         }
 
         mouse.dragged.listen {
-            // Track mouse velocity during drag
             val currentMousePos = mouse.position
+
+            // Handle slider dragging
+            draggingSlider?.let { slider ->
+                updateSliderValue(slider, currentMousePos.x)
+                return@listen
+            }
+
+            // Track mouse velocity during drag
             mouseVelocity = (currentMousePos - lastMousePos) * 60.0
             lastMousePos = currentMousePos
 
@@ -236,7 +320,7 @@ fun main() = application {
             // Update physics only if not paused
             if (!paused) {
                 world.step(1f/60f, 8, 3)
-//                world.gravity = Vec2(9.8f * sin(seconds.toFloat()), 9.8f * cos(seconds.toFloat()))
+                world.gravity = Vec2(9.8f * sin(seconds.toFloat()/ 3), 9.8f * cos(seconds.toFloat()/3))
             }
 
             drawer.clear(ColorRGBa.PINK)
@@ -350,29 +434,101 @@ fun main() = application {
             // Draw status text
             drawer.fill = ColorRGBa.BLACK
             drawer.stroke = null
-            var yPos = 30.0
-            if (paused) {
-                drawer.text("PAUSED (press 'p' to resume)", 20.0, yPos)
-                yPos += 25.0
-            }
-            if (debugMode) {
-                drawer.text("DEBUG MODE (press 'd' to disable)", 20.0, yPos)
-                yPos += 25.0
-                drawer.text("Cyan = Edge joints | Magenta = Diagonal joints", 20.0, yPos)
-            }
+
+            // When recording, only show red dot unless in debug mode
             if (recorder.outputToVideo) {
                 drawer.fill = ColorRGBa.RED
-                drawer.text("● RECORDING (press 'v' to stop)", 20.0, yPos)
-                drawer.fill = ColorRGBa.BLACK
+                drawer.circle(30.0, 30.0, 10.0)
+
+                if (debugMode) {
+                    drawer.fill = ColorRGBa.RED
+                    drawer.text("● RECORDING (press 'v' to stop)", 50.0, 35.0)
+                    drawer.fill = ColorRGBa.BLACK
+                }
             }
 
-            // Show controls hint
-            if (allShapes.isEmpty() && currentPoints.isEmpty()) {
-                drawer.text("Click to create shapes | Drag shapes to throw them around", 20.0, height - 40.0)
-                drawer.text("'d' = debug | 'p' = pause | 'c' = clear | 'v' = record", 20.0, height - 20.0)
-            } else if (allShapes.isNotEmpty() && currentPoints.isEmpty()) {
-                drawer.fill = ColorRGBa.BLACK.opacify(0.7)
-                drawer.text("Click & drag to throw shapes | Click empty space to draw new shape", 20.0, height - 20.0)
+            // Show other info only if not recording OR in debug mode
+            if (!recorder.outputToVideo || debugMode) {
+                var yPos = if (recorder.outputToVideo) 60.0 else 30.0
+
+                if (paused) {
+                    drawer.fill = ColorRGBa.BLACK
+                    drawer.text("PAUSED (press 'p' to resume)", 20.0, yPos)
+                    yPos += 25.0
+                }
+
+                if (debugMode) {
+                    drawer.fill = ColorRGBa.BLACK
+                    drawer.text("DEBUG MODE (press 'd' to disable)", 20.0, yPos)
+                    yPos += 25.0
+                    drawer.text("Cyan = Edge joints | Magenta = Diagonal joints", 20.0, yPos)
+                    yPos += 30.0
+
+                    // Draw sliders for joint parameters
+                    sliderRegions.clear()
+                    drawer.text("Joint Parameters:", 20.0, yPos)
+                    yPos += 20.0
+
+                    val edgeFreqSliderX = 200.0
+                    val sliderWidth = 200.0
+
+                    // Edge frequency slider
+                    drawer.fill = ColorRGBa.BLACK
+                    drawer.text("Edge Frequency: ${String.format("%.1f", edgeFrequency)}", 20.0, yPos)
+                    var sliderY = yPos - 10.0
+                    sliderRegions["edgeFreq"] = Pair(yPos - 5.0, edgeFreqSliderX)
+                    drawer.fill = ColorRGBa.GRAY
+                    drawer.rectangle(edgeFreqSliderX, sliderY, sliderWidth, 10.0)
+                    drawer.fill = ColorRGBa.BLUE
+                    val edgeFreqPos = ((edgeFrequency - 1f) / 9f) * sliderWidth
+                    drawer.circle(edgeFreqSliderX + edgeFreqPos, sliderY + 5.0, 7.0)
+                    yPos += 25.0
+
+                    // Edge damping slider
+                    drawer.fill = ColorRGBa.BLACK
+                    drawer.text("Edge Damping: ${String.format("%.2f", edgeDamping)}", 20.0, yPos)
+                    sliderY = yPos - 10.0
+                    sliderRegions["edgeDamp"] = Pair(yPos - 5.0, edgeFreqSliderX)
+                    drawer.fill = ColorRGBa.GRAY
+                    drawer.rectangle(edgeFreqSliderX, sliderY, sliderWidth, 10.0)
+                    drawer.fill = ColorRGBa.BLUE
+                    val edgeDampPos = edgeDamping * sliderWidth
+                    drawer.circle(edgeFreqSliderX + edgeDampPos, sliderY + 5.0, 7.0)
+                    yPos += 25.0
+
+                    // Diagonal frequency slider
+                    drawer.fill = ColorRGBa.BLACK
+                    drawer.text("Diagonal Frequency: ${String.format("%.1f", diagonalFrequency)}", 20.0, yPos)
+                    sliderY = yPos - 10.0
+                    sliderRegions["diagFreq"] = Pair(yPos - 5.0, edgeFreqSliderX)
+                    drawer.fill = ColorRGBa.GRAY
+                    drawer.rectangle(edgeFreqSliderX, sliderY, sliderWidth, 10.0)
+                    drawer.fill = ColorRGBa.BLUE
+                    val diagFreqPos = ((diagonalFrequency - 1f) / 9f) * sliderWidth
+                    drawer.circle(edgeFreqSliderX + diagFreqPos, sliderY + 5.0, 7.0)
+                    yPos += 25.0
+
+                    // Diagonal damping slider
+                    drawer.fill = ColorRGBa.BLACK
+                    drawer.text("Diagonal Damping: ${String.format("%.2f", diagonalDamping)}", 20.0, yPos)
+                    sliderY = yPos - 10.0
+                    sliderRegions["diagDamp"] = Pair(yPos - 5.0, edgeFreqSliderX)
+                    drawer.fill = ColorRGBa.GRAY
+                    drawer.rectangle(edgeFreqSliderX, sliderY, sliderWidth, 10.0)
+                    drawer.fill = ColorRGBa.BLUE
+                    val diagDampPos = diagonalDamping * sliderWidth
+                    drawer.circle(edgeFreqSliderX + diagDampPos, sliderY + 5.0, 7.0)
+                }
+
+                // Show controls hint
+                if (allShapes.isEmpty() && currentPoints.isEmpty()) {
+                    drawer.fill = ColorRGBa.BLACK
+                    drawer.text("Click to create shapes | Drag shapes to throw them around", 20.0, height - 40.0)
+                    drawer.text("'d' = debug | 'p' = pause | 'c' = clear | 'v' = record", 20.0, height - 20.0)
+                } else if (allShapes.isNotEmpty() && currentPoints.isEmpty()) {
+                    drawer.fill = ColorRGBa.BLACK.opacify(0.7)
+                    drawer.text("Click & drag to throw shapes | Click empty space to draw new shape", 20.0, height - 20.0)
+                }
             }
         }
     }
