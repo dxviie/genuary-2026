@@ -47,9 +47,18 @@ fun main() = application {
         // State for shape creation
         val currentPoints = mutableListOf<Vector2>()
         val allShapes = mutableListOf<SoftBody>() // Store all created shapes
+        val shapeColors = mutableMapOf<SoftBody, ColorRGBa>() // Store color for each shape
         val closureDistance = 15.0 // Distance threshold to close the shape
         var debugMode = false
         var paused = false
+
+        // Function to generate random pastel color
+        fun randomPastelColor(): ColorRGBa {
+            val r = Random.nextDouble(0.0, 1.0)
+            val g = Random.nextDouble(0.0, 1.0)
+            val b = Random.nextDouble(0.0, 1.0)
+            return ColorRGBa(r, g, b, 1.0)
+        }
 
         // Joint parameters (adjustable in debug mode)
         var edgeFrequency = 4f
@@ -220,6 +229,19 @@ fun main() = application {
                     }
                 }
                 allShapes.add(newShape)
+                shapeColors[newShape] = randomPastelColor()
+
+                // Apply random upward force to shoot it into the sky
+                val upwardForce = Random.nextDouble(5.0, 15.0)
+                val sidewaysForce = Random.nextDouble(-3.0, 3.0)
+                newShape.bodies.forEach { body ->
+                    body.applyLinearImpulse(
+                        Vec2((sidewaysForce / PHYSICS_SCALE).toFloat(),
+                             (-upwardForce / PHYSICS_SCALE).toFloat()), // Negative = up
+                        body.worldCenter
+                    )
+                }
+
                 return@listen
             }
 
@@ -253,6 +275,7 @@ fun main() = application {
                             }
                         }
                         allShapes.add(newShape)
+                        shapeColors[newShape] = randomPastelColor()
                         currentPoints.clear()
                         return@listen
                     }
@@ -353,6 +376,7 @@ fun main() = application {
                     shape.bodies.forEach { body -> world.destroyBody(body) }
                 }
                 allShapes.clear()
+                shapeColors.clear()
             }
         }
 
@@ -373,6 +397,7 @@ fun main() = application {
                         shape.bodies.forEach { body -> world.destroyBody(body) }
                     }
                     allShapes.clear()
+                    shapeColors.clear()
                 }
                 "v" -> {
                     recorder.outputToVideo = !recorder.outputToVideo
@@ -391,7 +416,7 @@ fun main() = application {
 //                world.gravity = Vec2(9.8f * sin(seconds.toFloat()/ 3), 9.8f * cos(seconds.toFloat()/3))
             }
 
-            drawer.clear(ColorRGBa.PINK)
+            drawer.clear(ColorRGBa(0.95, 0.96, 0.98, 1.0)) // Light blue-gray background
 
             // Draw the shape being created
             if (currentPoints.isNotEmpty()) {
@@ -422,10 +447,13 @@ fun main() = application {
 
             // Draw all soft body shapes
             allShapes.forEach { softBody ->
+                // Get the color for this shape (or use white as fallback)
+                val shapeColor = shapeColors[softBody] ?: ColorRGBa.WHITE
+
                 // Draw filled polygon for the soft body
                 if (softBody.bodies.isNotEmpty()) {
                     val polygonPoints = softBody.bodies.map { it.position.toOpenRNDR() }
-                    drawer.fill = ColorRGBa.WHITE.opacify(0.3)
+                    drawer.fill = shapeColor.opacify(0.5)
                     drawer.stroke = null
                     drawer.contour(org.openrndr.shape.contour {
                         moveTo(polygonPoints.first())
@@ -468,8 +496,8 @@ fun main() = application {
                 }
 
                 // Draw bodies at their actual physics size
-                drawer.fill = ColorRGBa.WHITE
-                drawer.stroke = ColorRGBa.BLACK
+                drawer.fill = shapeColor
+                drawer.stroke = shapeColor.shade(0.7)
                 drawer.strokeWeight = 1.0
                 softBody.bodies.forEach { body ->
                     val pos = body.position.toOpenRNDR()
