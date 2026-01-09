@@ -105,35 +105,46 @@ fun createSoftBody(world: World, points: List<Vector2>): SoftBody {
         edgeJoints.add(joint)
     }
 
-    // Create diagonal joints for stability
-    // More complex shapes get more internal cross-bracing
+    // Create diagonal joints for stability with smart distribution
     val diagonalJoints = mutableListOf<Joint>()
     val numBodies = createdBodies.size
 
-    // Skip-2 connections (connect to neighbor's neighbor) for shapes with > 3 vertices
     if (numBodies > 3) {
-        for (i in createdBodies.indices) {
-            val skipIndex = (i + 2) % numBodies
-            val joint = createSpringJoint(world, createdBodies[i], createdBodies[skipIndex], frequency = 2f, damping = 0.8f)
-            diagonalJoints.add(joint)
-        }
-    }
+        // Calculate skip distances based on fractions of the total count
+        // This provides consistent cross-bracing regardless of segment count
+        val skipDistances = mutableListOf<Int>()
 
-    // Skip-3 connections for shapes with > 5 vertices
-    if (numBodies > 5) {
-        for (i in createdBodies.indices) {
-            val skipIndex = (i + 3) % numBodies
-            val joint = createSpringJoint(world, createdBodies[i], createdBodies[skipIndex], frequency = 1.5f, damping = 0.85f)
-            diagonalJoints.add(joint)
-        }
-    }
+        // Always add a skip distance for nearest non-adjacent (like skip-2)
+        skipDistances.add(2)
 
-    // Skip-4 connections for shapes with > 7 vertices
-    if (numBodies > 7) {
-        for (i in createdBodies.indices) {
-            val skipIndex = (i + 4) % numBodies
-            val joint = createSpringJoint(world, createdBodies[i], createdBodies[skipIndex], frequency = 1.2f, damping = 0.9f)
-            diagonalJoints.add(joint)
+        // For larger shapes, add cross-bracing at 1/3 of the circle
+        if (numBodies > 6) {
+            val skip = (numBodies / 3).coerceAtLeast(3)
+            if (skip !in skipDistances) skipDistances.add(skip)
+        }
+
+        // For even larger shapes, add cross-bracing at 1/2 of the circle (opposite side)
+        if (numBodies > 8) {
+            val skip = (numBodies / 2).coerceAtLeast(4)
+            if (skip !in skipDistances) skipDistances.add(skip)
+        }
+
+        // Create joints for each skip distance
+        for ((index, skip) in skipDistances.withIndex()) {
+            // Adjust frequency and damping based on distance (longer = softer)
+            val frequency = (2.5f - index * 0.5f).coerceAtLeast(1.0f)
+            val damping = (0.75f + index * 0.05f).coerceAtMost(0.9f)
+
+            for (i in createdBodies.indices) {
+                val skipIndex = (i + skip) % numBodies
+                // Only create joint if we haven't already connected these in reverse
+                // (avoid duplicate connections)
+                if (i < skipIndex || skip > numBodies / 2) {
+                    val joint = createSpringJoint(world, createdBodies[i], createdBodies[skipIndex],
+                                                  frequency = frequency, damping = damping)
+                    diagonalJoints.add(joint)
+                }
+            }
         }
     }
 

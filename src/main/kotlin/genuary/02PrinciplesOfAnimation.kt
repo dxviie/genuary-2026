@@ -129,7 +129,7 @@ fun main() = application {
                 "edgeDamp" -> edgeDamping = normalized.toFloat() // 0-1
                 "diagFreq" -> diagonalFrequency = (1f + normalized * 9f).toFloat() // 1-10 Hz
                 "diagDamp" -> diagonalDamping = normalized.toFloat() // 0-1
-                "blobSegs" -> blobSegments = (4 + (normalized * 16).toInt()).coerceIn(4, 20) // 4-20 segments
+                "blobSegs" -> blobSegments = (4 + (normalized * 96).toInt()).coerceIn(4, 100) // 4-100 segments
                 "blobNoise" -> blobNoiseFactor = normalized * 100.0 // 0-100 pixels
                 "blobRadius" -> blobRadius = 50.0 + normalized * 150.0 // 50-200 pixels
             }
@@ -620,7 +620,7 @@ fun main() = application {
                     drawer.fill = ColorRGBa.GRAY
                     drawer.rectangle(edgeFreqSliderX, sliderY, sliderWidth, 10.0)
                     drawer.fill = ColorRGBa.GREEN
-                    val blobSegsPos = ((blobSegments - 4).toDouble() / 16.0) * sliderWidth
+                    val blobSegsPos = ((blobSegments - 4).toDouble() / 96.0) * sliderWidth
                     drawer.circle(edgeFreqSliderX + blobSegsPos, sliderY + 5.0, 7.0)
                     yPos += 25.0
 
