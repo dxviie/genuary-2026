@@ -2,6 +2,8 @@ package genuary
 
 import org.jbox2d.common.Vec2
 import org.jbox2d.dynamics.*
+import org.jbox2d.dynamics.joints.MouseJoint
+import org.jbox2d.dynamics.joints.MouseJointDef
 import org.openrndr.KEY_ESCAPE
 import org.openrndr.application
 import org.openrndr.color.ColorRGBa
@@ -13,6 +15,7 @@ import utils.SoftBody
 import utils.createSoftBody
 import utils.createWall
 import utils.toOpenRNDR
+import utils.toBox2D
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -45,6 +48,48 @@ fun main() = application {
         var debugMode = false
         var paused = false
 
+        // Mouse interaction state
+        var mouseJoint: MouseJoint? = null
+        var draggedBody: Body? = null
+        var lastMousePos = mouse.position
+        var mouseVelocity = Vector2.ZERO
+
+        // Helper function to check if a point is inside a polygon using ray casting
+        fun pointInPolygon(point: Vector2, polygon: List<Vector2>): Boolean {
+            var inside = false
+            var j = polygon.size - 1
+            for (i in polygon.indices) {
+                val xi = polygon[i].x
+                val yi = polygon[i].y
+                val xj = polygon[j].x
+                val yj = polygon[j].y
+
+                val intersect = ((yi > point.y) != (yj > point.y)) &&
+                        (point.x < (xj - xi) * (point.y - yi) / (yj - yi) + xi)
+                if (intersect) inside = !inside
+                j = i
+            }
+            return inside
+        }
+
+        // Helper function to find body at position
+        fun findBodyAtPosition(pos: Vector2): Body? {
+            for (shape in allShapes) {
+                // Get polygon vertices from body positions
+                val polygonPoints = shape.bodies.map { it.position.toOpenRNDR() }
+
+                // Check if click is inside the polygon
+                if (pointInPolygon(pos, polygonPoints)) {
+                    // Return the body closest to the click position
+                    return shape.bodies.minByOrNull { body ->
+                        val bodyPos = body.position.toOpenRNDR()
+                        (pos - bodyPos).length
+                    }
+                }
+            }
+            return null
+        }
+
         // keep a reference to the recorder so we can start it and stop it.
         val recorder = ScreenRecorder().apply {
             outputToVideo = false
@@ -52,28 +97,105 @@ fun main() = application {
         }
         extend(recorder)
 
-        mouse.buttonDown.listen {
+        mouse.buttonDown.listen { event ->
+            if (event.button.ordinal != 0) return@listen // Only handle left click
+
             val clickPos = mouse.position
 
-            // Check if clicking near the first point to close the shape
-            if (currentPoints.size >= 3) {
-                val distToFirst = (clickPos - currentPoints.first()).length
-                if (distToFirst < closureDistance) {
-                    // Close the shape and create soft body
-                    val newShape = createSoftBody(world, currentPoints)
-                    allShapes.add(newShape)
-                    currentPoints.clear()
-                    return@listen
+            // If we're currently drawing, continue with shape creation
+            if (currentPoints.isNotEmpty()) {
+                // Check if clicking near the first point to close the shape
+                if (currentPoints.size >= 3) {
+                    val distToFirst = (clickPos - currentPoints.first()).length
+                    if (distToFirst < closureDistance) {
+                        // Close the shape and create soft body
+                        val newShape = createSoftBody(world, currentPoints)
+                        allShapes.add(newShape)
+                        currentPoints.clear()
+                        return@listen
+                    }
+                }
+
+                // Add new point
+                currentPoints.add(clickPos)
+            } else {
+                // Not drawing - check if clicking on a body to drag
+                val body = findBodyAtPosition(clickPos)
+                if (body != null) {
+                    draggedBody = body
+
+                    // Create mouse joint for dragging
+                    val groundBody = world.bodyList // Get the first static body (ground)
+                    val jointDef = MouseJointDef().apply {
+                        bodyA = groundBody
+                        bodyB = body
+                        target.set(clickPos.toBox2D())
+                        maxForce = 1000f * body.mass
+                        frequencyHz = 5f
+                        dampingRatio = 0.7f
+                    }
+                    mouseJoint = world.createJoint(jointDef) as MouseJoint
+                } else {
+                    // Start a new shape
+                    currentPoints.add(clickPos)
+                }
+            }
+        }
+
+        mouse.buttonUp.listen { event ->
+            if (event.button.ordinal != 0) return@listen // Only handle left click
+
+            // Release the mouse joint and apply throw velocity
+            mouseJoint?.let { joint ->
+                world.destroyJoint(joint)
+
+                // Apply impulse based on mouse velocity for throwing
+                draggedBody?.let { body ->
+                    val impulse = mouseVelocity * (body.mass * 0.5)
+                    body.applyLinearImpulse(
+                        Vec2((impulse.x / PHYSICS_SCALE).toFloat(),
+                             (impulse.y / PHYSICS_SCALE).toFloat()),
+                        body.worldCenter
+                    )
                 }
             }
 
-            // Add new point
-            currentPoints.add(clickPos)
+            mouseJoint = null
+            draggedBody = null
+        }
+
+        mouse.moved.listen {
+            // Track mouse velocity for throwing
+            val currentMousePos = mouse.position
+            mouseVelocity = (currentMousePos - lastMousePos) * 60.0 // Scale by frame rate
+            lastMousePos = currentMousePos
+
+            // Update mouse joint target if dragging
+            mouseJoint?.let { joint ->
+                joint.target = currentMousePos.toBox2D()
+            }
+        }
+
+        mouse.dragged.listen {
+            // Track mouse velocity during drag
+            val currentMousePos = mouse.position
+            mouseVelocity = (currentMousePos - lastMousePos) * 60.0
+            lastMousePos = currentMousePos
+
+            // Update mouse joint target
+            mouseJoint?.let { joint ->
+                joint.target = currentMousePos.toBox2D()
+            }
         }
 
         // Reset on right click
         mouse.buttonDown.listen { event ->
             if (event.button.ordinal == 1) { // Right mouse button
+                // Clean up mouse joint if active
+                mouseJoint?.let { world.destroyJoint(it) }
+                mouseJoint = null
+                draggedBody = null
+
                 currentPoints.clear()
                 allShapes.forEach { shape ->
                     shape.bodies.forEach { body -> world.destroyBody(body) }
@@ -89,6 +211,11 @@ fun main() = application {
                 "p" -> paused = !paused
                 "c" -> {
                     // Clear the scene
+                    // Clean up mouse joint if active
+                    mouseJoint?.let { world.destroyJoint(it) }
+                    mouseJoint = null
+                    draggedBody = null
+
                     currentPoints.clear()
                     allShapes.forEach { shape ->
                         shape.bodies.forEach { body -> world.destroyBody(body) }
@@ -201,10 +328,24 @@ fun main() = application {
                 }
             }
 
+            // Draw drag indicator if dragging
+            draggedBody?.let { body ->
+                val bodyPos = body.position.toOpenRNDR()
+                drawer.stroke = ColorRGBa.BLUE
+                drawer.strokeWeight = 2.0
+                drawer.lineSegment(bodyPos, mouse.position)
+
+                drawer.fill = ColorRGBa.BLUE.opacify(0.5)
+                drawer.stroke = null
+                drawer.circle(mouse.position, 8.0)
+            }
+
             // Draw current mouse position hint
-            drawer.fill = ColorRGBa.BLACK.opacify(0.3)
-            drawer.stroke = null
-            drawer.circle(mouse.position, 3.0)
+            if (draggedBody == null) {
+                drawer.fill = ColorRGBa.BLACK.opacify(0.3)
+                drawer.stroke = null
+                drawer.circle(mouse.position, 3.0)
+            }
 
             // Draw status text
             drawer.fill = ColorRGBa.BLACK
@@ -225,9 +366,13 @@ fun main() = application {
                 drawer.fill = ColorRGBa.BLACK
             }
 
-            // Show controls hint when no shapes exist
+            // Show controls hint
             if (allShapes.isEmpty() && currentPoints.isEmpty()) {
-                drawer.text("Click to create shapes | 'd' = debug | 'p' = pause | 'c' = clear | 'v' = record", 20.0, height - 20.0)
+                drawer.text("Click to create shapes | Drag shapes to throw them around", 20.0, height - 40.0)
+                drawer.text("'d' = debug | 'p' = pause | 'c' = clear | 'v' = record", 20.0, height - 20.0)
+            } else if (allShapes.isNotEmpty() && currentPoints.isEmpty()) {
+                drawer.fill = ColorRGBa.BLACK.opacify(0.7)
+                drawer.text("Click & drag to throw shapes | Click empty space to draw new shape", 20.0, height - 20.0)
             }
         }
     }
