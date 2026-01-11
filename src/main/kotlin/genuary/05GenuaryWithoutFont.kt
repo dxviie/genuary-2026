@@ -54,6 +54,10 @@ fun main() = application {
         var debugMode = false
         var paused = false
 
+        // Confetti particles
+        data class Confetti(val body: Body, val color: ColorRGBa, var lifetime: Double = 10.0)
+        val confettiParticles = mutableListOf<Confetti>()
+
         // Function to generate random vibrant color that pops on dark background
         fun randomPastelColor(): ColorRGBa {
             // Generate bright, saturated colors by ensuring high values
@@ -66,6 +70,49 @@ fun main() = application {
                 0 -> return ColorRGBa(1.0, g, b, 1.0)
                 1 -> return ColorRGBa(r, 1.0, b, 1.0)
                 else -> return ColorRGBa(r, g, 1.0, 1.0)
+            }
+        }
+
+        // Function to spawn confetti from center
+        fun spawnConfetti() {
+            val centerX = (width / 2.0 / PHYSICS_SCALE).toFloat()
+            val centerY = (height / 2.0 / PHYSICS_SCALE).toFloat()
+            val numParticles = 200
+
+            repeat(numParticles) {
+                // Create small circular body
+                val bodyDef = BodyDef().apply {
+                    type = BodyType.DYNAMIC
+                    position.set(centerX, centerY)
+                }
+                val body = world.createBody(bodyDef)
+
+                // Add circular shape
+                val circle = org.jbox2d.collision.shapes.CircleShape().apply {
+                    radius = Random.nextDouble(0.02, 0.05).toFloat()
+                }
+
+                val fixtureDef = FixtureDef().apply {
+                    shape = circle
+                    density = 0.5f
+                    friction = 0.3f
+                    restitution = 0.6f // Bouncy!
+                }
+                body.createFixture(fixtureDef)
+
+                // Apply random upward and outward impulse
+                val upwardForce = Random.nextDouble(8.0, 15.0)
+                val sidewaysForce = Random.nextDouble(-5.0, 5.0)
+                body.applyLinearImpulse(
+                    Vec2((sidewaysForce / PHYSICS_SCALE).toFloat(),
+                         (-upwardForce / PHYSICS_SCALE).toFloat()),
+                    body.worldCenter
+                )
+
+                // Add random angular velocity for spinning effect
+                body.angularVelocity = Random.nextDouble(-10.0, 10.0).toFloat()
+
+                confettiParticles.add(Confetti(body, randomPastelColor()))
             }
         }
 
@@ -394,6 +441,7 @@ fun main() = application {
             when (event.name) {
                 "d" -> debugMode = !debugMode
                 "p" -> paused = !paused
+                "f" -> spawnConfetti()
                 "c" -> {
                     // Clear the scene
                     // Clean up mouse joint if active
@@ -407,6 +455,12 @@ fun main() = application {
                     }
                     allShapes.clear()
                     shapeColors.clear()
+
+                    // Clear confetti
+                    confettiParticles.forEach { confetti ->
+                        world.destroyBody(confetti.body)
+                    }
+                    confettiParticles.clear()
                 }
                 "v" -> {
                     recorder.outputToVideo = !recorder.outputToVideo
@@ -423,6 +477,17 @@ fun main() = application {
             if (!paused) {
                 world.step(1f/60f, 8, 3)
 //                world.gravity = Vec2(9.8f * sin(seconds.toFloat()/ 3), 9.8f * cos(seconds.toFloat()/3))
+
+                // Update confetti lifetime and remove expired ones
+                confettiParticles.removeAll { confetti ->
+                    confetti.lifetime -= deltaTime
+                    if (confetti.lifetime <= 0) {
+                        world.destroyBody(confetti.body)
+                        true
+                    } else {
+                        false
+                    }
+                }
             }
 
             drawer.clear(ColorRGBa(0.05, 0.05, 0.05, 1.0))
@@ -534,6 +599,28 @@ fun main() = application {
                 drawer.fill = ColorRGBa.BLACK.opacify(0.3)
                 drawer.stroke = null
                 drawer.circle(mouse.position, 3.0)
+            }
+
+            // Draw confetti particles
+            confettiParticles.forEach { confetti ->
+                val pos = confetti.body.position.toOpenRNDR()
+                val radius = confetti.body.fixtureList?.shape?.radius ?: 0.03f
+                val visualRadius = radius * PHYSICS_SCALE
+                val angle = confetti.body.angle
+
+                // Fade out based on lifetime
+                val alpha = (confetti.lifetime / 10.0).coerceIn(0.0, 1.0)
+
+                drawer.pushTransforms()
+                drawer.translate(pos)
+                drawer.rotate(Math.toDegrees(angle.toDouble()))
+
+                // Draw as a small rectangle for confetti look
+                drawer.fill = confetti.color.opacify(alpha)
+                drawer.stroke = null
+                drawer.rectangle(-visualRadius, -visualRadius * 2, visualRadius * 2, visualRadius * 4)
+
+                drawer.popTransforms()
             }
 
             // Draw status text
@@ -668,11 +755,11 @@ fun main() = application {
 
                 // Show controls hint
                 if (allShapes.isEmpty() && currentPoints.isEmpty()) {
-                    drawer.fill = ColorRGBa.BLACK
+                    drawer.fill = ColorRGBa.WHITE
                     drawer.text("Click to create shapes | Drag shapes to throw them around", 20.0, height - 40.0)
-                    drawer.text("'d' = debug | 'p' = pause | 'c' = clear | 'v' = record", 20.0, height - 20.0)
+                    drawer.text("'d' = debug | 'p' = pause | 'f' = confetti | 'c' = clear | 'v' = record", 20.0, height - 20.0)
                 } else if (allShapes.isNotEmpty() && currentPoints.isEmpty()) {
-                    drawer.fill = ColorRGBa.BLACK.opacify(0.7)
+                    drawer.fill = ColorRGBa.WHITE.opacify(0.7)
                     drawer.text("Click & drag to throw shapes | Click empty space to draw new shape", 20.0, height - 20.0)
                 }
             }
