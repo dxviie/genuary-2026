@@ -54,12 +54,19 @@ fun main() = application {
         var debugMode = false
         var paused = false
 
-        // Function to generate random pastel color
+        // Function to generate random vibrant color that pops on dark background
         fun randomPastelColor(): ColorRGBa {
-            val r = Random.nextDouble(0.0, 1.0)
-            val g = Random.nextDouble(0.0, 1.0)
-            val b = Random.nextDouble(0.0, 1.0)
-            return ColorRGBa(r, g, b, 1.0)
+            // Generate bright, saturated colors by ensuring high values
+            val r = Random.nextDouble(0.5, 1.0)
+            val g = Random.nextDouble(0.5, 1.0)
+            val b = Random.nextDouble(0.5, 1.0)
+
+            // Boost one channel to full brightness for extra pop
+            when (Random.nextInt(3)) {
+                0 -> return ColorRGBa(1.0, g, b, 1.0)
+                1 -> return ColorRGBa(r, 1.0, b, 1.0)
+                else -> return ColorRGBa(r, g, 1.0, 1.0)
+            }
         }
 
         // Joint parameters (adjustable in debug mode)
@@ -418,7 +425,7 @@ fun main() = application {
 //                world.gravity = Vec2(9.8f * sin(seconds.toFloat()/ 3), 9.8f * cos(seconds.toFloat()/3))
             }
 
-            drawer.clear(ColorRGBa(0.1, 0.3, 0.1, 1.0))
+            drawer.clear(ColorRGBa(0.05, 0.05, 0.05, 1.0))
 
             // Draw the shape being created
             if (currentPoints.isNotEmpty()) {
@@ -455,7 +462,7 @@ fun main() = application {
                 // Draw filled polygon for the soft body
                 if (softBody.bodies.isNotEmpty()) {
                     val polygonPoints = softBody.bodies.map { it.position.toOpenRNDR() }
-                    drawer.fill = shapeColor.opacify(0.5)
+                    drawer.fill = shapeColor.opacify(0.7)
                     drawer.stroke = null
                     drawer.contour(contour {
                         moveTo(polygonPoints.first())
