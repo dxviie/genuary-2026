@@ -7,6 +7,7 @@ import org.jbox2d.dynamics.joints.MouseJointDef
 import org.openrndr.KEY_ESCAPE
 import org.openrndr.application
 import org.openrndr.color.ColorRGBa
+import org.openrndr.draw.loadFont
 import org.openrndr.extra.noise.simplex
 import org.openrndr.extra.olive.oliveProgram
 import org.openrndr.ffmpeg.ScreenRecorder
@@ -17,6 +18,7 @@ import utils.createSoftBody
 import utils.createWall
 import utils.toOpenRNDR
 import utils.toBox2D
+import java.io.File
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
@@ -32,6 +34,8 @@ fun main() = application {
     oliveProgram {
         // Box2D setup
         val world = World(Vec2(0f, 9.8f)) // Gravity pointing down
+        val fontFile = File("data/fonts/default.otf")
+        val font = loadFont(fontFile.toURI().toString(), 13.0)
 
         // Create walls (floor, ceiling, left, right)
         val wallThickness = 50f / PHYSICS_SCALE.toFloat()
@@ -417,6 +421,7 @@ fun main() = application {
             }
 
             drawer.clear(ColorRGBa(0.95, 0.96, 0.98, 1.0)) // Light blue-gray background
+            drawer.fontMap = font
 
             // Draw the shape being created
             if (currentPoints.isNotEmpty()) {
