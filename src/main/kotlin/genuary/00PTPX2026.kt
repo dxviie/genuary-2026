@@ -214,7 +214,7 @@ fun main() = application {
                 shapeNode.shape.contours.forEach { contour ->
                     if (contour.closed) {
                         // Sample points along the contour (increased distance to reduce body count)
-                        val numPoints = max(6, (contour.length * scale / 50.0).toInt()).coerceAtMost(50)
+                        val numPoints = max(6, (contour.length * scale / 10.0).toInt()).coerceAtMost(50)
                         val points = sampleContour(contour, numPoints, shapeTransform)
 
                         if (points.size >= 3) {
@@ -245,7 +245,7 @@ fun main() = application {
                             }
 
                             // Apply tiny random initial forces to all bodies
-                            val maxForce = .003
+                            val maxForce = .005
                             softBody.bodies.forEach { body ->
                                 val forceX = Random.nextDouble(-maxForce, maxForce).toFloat()
                                 val forceY = Random.nextDouble(-maxForce, maxForce).toFloat()
@@ -260,18 +260,26 @@ fun main() = application {
             }
 
             // Create inter-shape joints by shooting random lines
-            val numConnectionLines = 100  // Reduced to prevent Box2D overflow
+            val numConnectionLines = 100
             val maxInterShapeJoints = 50  // Global limit on inter-shape joints
             var jointsCreated = 0
 
-            for (i in 0 until numConnectionLines) {
+            // Data class to track all intersections (including screen boundaries)
+            data class Intersection(
+                val point: Vector2,
+                val isScreenBoundary: Boolean,
+                val shape: SoftBody? = null,
+                val body: Body? = null
+            )
+
+            for (lineAttempt in 0 until numConnectionLines * 2) {  // Try more lines since we filter for even intersections
                 if (jointsCreated >= maxInterShapeJoints) break
 
-                // Generate random line across the scene
+                // Generate random line across the scene (larger than screen)
                 val angle = Random.nextDouble(0.0, kotlin.math.PI * 2.0)
-                val centerX = width / 2.0
-                val centerY = height / 2.0
-                val length = max(width, height) * 1.5
+                val centerX = width / Random.nextDouble(1.0, 5.0)
+                val centerY = height / Random.nextDouble(1.0, 5.0)
+                val length = max(width, height) * 2.0
 
                 val lineStart = Vector2(
                     centerX + kotlin.math.cos(angle) * length,
@@ -282,10 +290,24 @@ fun main() = application {
                     centerY - kotlin.math.sin(angle) * length
                 )
 
-                // Find intersections with shape edges
-                data class Intersection(val point: Vector2, val shape: SoftBody, val body: Body)
                 val intersections = mutableListOf<Intersection>()
 
+                // Find intersections with screen boundaries (4 edges)
+                val screenEdges = listOf(
+                    Pair(Vector2(0.0, 0.0), Vector2(width.toDouble(), 0.0)),  // Top
+                    Pair(Vector2(width.toDouble(), 0.0), Vector2(width.toDouble(), height.toDouble())),  // Right
+                    Pair(Vector2(width.toDouble(), height.toDouble()), Vector2(0.0, height.toDouble())),  // Bottom
+                    Pair(Vector2(0.0, height.toDouble()), Vector2(0.0, 0.0))  // Left
+                )
+
+                for ((edgeStart, edgeEnd) in screenEdges) {
+                    val intersection = lineSegmentIntersection(lineStart, lineEnd, edgeStart, edgeEnd)
+                    if (intersection != null) {
+                        intersections.add(Intersection(intersection, isScreenBoundary = true))
+                    }
+                }
+
+                // Find intersections with shape edges
                 for (shape in shapes) {
                     for (j in shape.bodies.indices) {
                         val nextIndex = (j + 1) % shape.bodies.size
@@ -296,32 +318,68 @@ fun main() = application {
                         if (intersection != null) {
                             val closestBody = findClosestBody(shape, intersection)
                             if (closestBody != null) {
-                                intersections.add(Intersection(intersection, shape, closestBody))
+                                intersections.add(Intersection(intersection, isScreenBoundary = false, shape, closestBody))
                             }
                         }
                     }
                 }
 
-                // Create joints between consecutive intersections
-                for (j in 0 until intersections.size - 1) {
+                // Only continue if we have an even number of intersections
+                if (intersections.size % 2 != 0) continue
+
+                // Sort intersections by distance along the line (from lineStart)
+                intersections.sortBy { (it.point - lineStart).length }
+
+                // Helper function to get or create a body for an intersection
+                fun getBodyForIntersection(intersection: Intersection): Body? {
+                    if (intersection.body != null) {
+                        return intersection.body
+                    }
+
+                    // If it's a screen boundary, create a static anchor body
+                    if (intersection.isScreenBoundary) {
+                        val bodyDef = BodyDef().apply {
+                            type = BodyType.STATIC
+                            position.set(
+                                (intersection.point.x / PHYSICS_SCALE).toFloat(),
+                                (intersection.point.y / PHYSICS_SCALE).toFloat()
+                            )
+                        }
+                        return world.createBody(bodyDef)
+                    }
+
+                    return null
+                }
+
+                // Create joints by pairing consecutive intersections
+                for (pairIdx in 0 until intersections.size / 2) {
                     if (jointsCreated >= maxInterShapeJoints) break
 
-                    val int1 = intersections[j]
-                    val int2 = intersections[j + 1]
+                    val idx1 = pairIdx * 2
+                    val idx2 = pairIdx * 2 + 1
 
-                    // Only create joint if they're from different shapes
-                    if (int1.shape != int2.shape) {
-                        val joint = createSpringJoint(
-                            world,
-                            int1.body,
-                            int2.body,
-                            frequency = interShapeFrequency,
-                            damping = interShapeDamping
-                        )
-                        if (joint is DistanceJoint) {
-                            interShapeJoints.add(joint)
-                            jointsCreated++
-                        }
+                    val int1 = intersections[idx1]
+                    val int2 = intersections[idx2]
+
+                    // Skip if both are screen boundaries
+                    if (int1.isScreenBoundary && int2.isScreenBoundary) continue
+
+                    val body1 = getBodyForIntersection(int1)
+                    val body2 = getBodyForIntersection(int2)
+
+                    if (body1 == null || body2 == null) continue
+
+                    // Create joint between the two bodies
+                    val joint = createSpringJoint(
+                        world,
+                        body1,
+                        body2,
+                        frequency = interShapeFrequency,
+                        damping = interShapeDamping
+                    )
+                    if (joint is DistanceJoint) {
+                        interShapeJoints.add(joint)
+                        jointsCreated++
                     }
                 }
             }
