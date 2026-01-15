@@ -7,6 +7,7 @@ import org.openrndr.KEY_ESCAPE
 import org.openrndr.application
 import org.openrndr.color.ColorRGBa
 import org.openrndr.draw.loadFont
+import org.openrndr.draw.shadeStyle
 import org.openrndr.extra.olive.oliveProgram
 import org.openrndr.extra.svg.loadSVG
 import org.openrndr.extra.gui.GUI
@@ -166,6 +167,33 @@ fun main() = application {
         createWall(world, (width / PHYSICS_SCALE + wallThickness).toFloat(), (height / 2 / PHYSICS_SCALE).toFloat(),
                    wallThickness, (height / 2 / PHYSICS_SCALE).toFloat()) // Right wall
 
+        // Color palettes for gradient backgrounds - vibrant CMY spectrum
+        data class GradientPalette(val name: String, val colors: List<ColorRGBa>)
+
+        val gradientPalettes = listOf(
+            GradientPalette("Spectrum 1", listOf(
+                ColorRGBa.fromHex(0xFF0080),  // Vivid magenta
+                ColorRGBa.fromHex(0x00FFFF),  // Pure cyan
+                ColorRGBa.fromHex(0xFFFF00),  // Pure yellow
+                ColorRGBa.fromHex(0xFF0000),  // Pure red
+                ColorRGBa.fromHex(0x00FF00)   // Pure green
+            )),
+            GradientPalette("Spectrum 2", listOf(
+                ColorRGBa.fromHex(0xFF00FF),  // Pure magenta
+                ColorRGBa.fromHex(0x00FFAA),  // Cyan-green
+                ColorRGBa.fromHex(0xFFAA00),  // Orange-yellow
+                ColorRGBa.fromHex(0x0088FF),  // Cyan-blue
+                ColorRGBa.fromHex(0xFF0066)   // Magenta-red
+            )),
+            GradientPalette("Spectrum 3", listOf(
+                ColorRGBa.fromHex(0xDD00FF),  // Violet-magenta
+                ColorRGBa.fromHex(0x00DDFF),  // Bright cyan
+                ColorRGBa.fromHex(0xDDFF00),  // Bright yellow-green
+                ColorRGBa.fromHex(0xFF6600),  // Vivid orange
+                ColorRGBa.fromHex(0x00FFCC)   // Cyan-turquoise
+            ))
+        )
+
         // State
         val shapes = mutableListOf<SoftBody>()
         val shapeColors = mutableMapOf<SoftBody, ColorRGBa>()
@@ -174,12 +202,27 @@ fun main() = application {
         var debugMode = false
         var paused = true
 
-        // Function to generate random color
-        fun randomColor(): ColorRGBa {
-            val r = Random.nextDouble(0.3, 1.0)
-            val g = Random.nextDouble(0.3, 1.0)
-            val b = Random.nextDouble(0.3, 1.0)
-            return ColorRGBa(r, g, b, 1.0)
+        // Gradient background setup
+        data class GradientPoint(val position: Vector2, val color: ColorRGBa)
+        val gradientPoints = mutableListOf<GradientPoint>()
+        var currentPalette: GradientPalette
+
+        fun initializeGradient() {
+            gradientPoints.clear()
+            currentPalette = gradientPalettes.random()
+
+            // Create 4-6 random gradient points
+            val numPoints = Random.nextInt(4, 7)
+            repeat(numPoints) {
+                val point = GradientPoint(
+                    Vector2(
+                        Random.nextDouble(0.0, width.toDouble()),
+                        Random.nextDouble(0.0, height.toDouble())
+                    ),
+                    currentPalette.colors.random()
+                )
+                gradientPoints.add(point)
+            }
         }
 
         // Function to transform SVG point to screen space
@@ -233,6 +276,9 @@ fun main() = application {
 
         // Function to initialize/reset the scene
         fun initializeScene() {
+            // Initialize gradient background
+            initializeGradient()
+
             // Clear existing shapes and joints
             shapes.forEach { softBody ->
                 softBody.bodies.forEach { body -> world.destroyBody(body) }
@@ -295,7 +341,7 @@ fun main() = application {
                             }
 
                             shapes.add(softBody)
-                            shapeColors[softBody] = randomColor()
+                            shapeColors[softBody] = ColorRGBa.WHITE
 
                             // Group this softbody with others from the same SVG shape
                             shapeGroups.getOrPut(shapeIndex) { mutableListOf() }.add(softBody)
@@ -449,6 +495,9 @@ fun main() = application {
                     "window=${width}x${height}")
         }
 
+        // Initialize gradient first
+        currentPalette = gradientPalettes.random()
+
         // Initialize the scene on startup
         initializeScene()
 
@@ -512,8 +561,34 @@ fun main() = application {
                 world.step(1f/60f, 8, 3)
             }
 
-            drawer.clear(ColorRGBa(0.95, 0.96, 0.98, 1.0))
+            drawer.clear(ColorRGBa.BLACK)
             drawer.fontMap = font
+
+            // Draw gradient background
+            drawer.shadeStyle = shadeStyle {
+                fragmentTransform = """
+                    vec2 screenPos = c_boundsPosition.xy;
+                    vec3 color = vec3(0.0);
+                    float totalWeight = 0.0;
+
+                    ${gradientPoints.mapIndexed { i, point ->
+                        """
+                        // Point $i
+                        vec2 p$i = vec2(${point.position.x / width}, ${point.position.y / height});
+                        vec3 c$i = vec3(${point.color.r}, ${point.color.g}, ${point.color.b});
+                        float d$i = distance(screenPos, p$i);
+                        float w$i = 1.0 / (d$i * d$i + 0.01);
+                        color += c$i * w$i;
+                        totalWeight += w$i;
+                        """
+                    }.joinToString("\n")}
+
+                    x_fill.rgb = color / totalWeight;
+                    x_fill.a = 1.0;
+                """.trimIndent()
+            }
+            drawer.rectangle(0.0, 0.0, width.toDouble(), height.toDouble())
+            drawer.shadeStyle = null
 
             // Draw SVG bounds rectangle (in debug mode)
             if (debugMode) {
@@ -551,7 +626,7 @@ fun main() = application {
 
                 // Draw filled shape with holes
                 if (outerShape.bodies.isNotEmpty()) {
-                    drawer.fill = shapeColor.opacify(0.6)
+                    drawer.fill = shapeColor.opacify(0.95)
                     drawer.stroke = null
 
                     // Create outer contour
@@ -647,8 +722,7 @@ fun main() = application {
                 }
             }
 
-            // Draw status text
-            drawer.fill = ColorRGBa.BLACK
+            // Draw status text with background for visibility
             drawer.stroke = null
 
             if (recorder.outputToVideo) {
@@ -656,7 +730,9 @@ fun main() = application {
                 drawer.circle(30.0, 30.0, 10.0)
 
                 if (debugMode) {
-                    drawer.fill = ColorRGBa.RED
+                    drawer.fill = ColorRGBa.BLACK.opacify(0.7)
+                    drawer.rectangle(45.0, 18.0, 300.0, 24.0)
+                    drawer.fill = ColorRGBa.WHITE
                     drawer.text("● RECORDING (press 'v' to stop)", 50.0, 35.0)
                 }
             }
@@ -665,13 +741,17 @@ fun main() = application {
                 var yPos = if (recorder.outputToVideo) 60.0 else 30.0
 
                 if (paused) {
-                    drawer.fill = ColorRGBa.BLACK
+                    drawer.fill = ColorRGBa.BLACK.opacify(0.7)
+                    drawer.rectangle(15.0, yPos - 17.0, 350.0, 24.0)
+                    drawer.fill = ColorRGBa.WHITE
                     drawer.text("PAUSED (press 'p' to resume)", 20.0, yPos)
                     yPos += 25.0
                 }
 
                 if (debugMode) {
-                    drawer.fill = ColorRGBa.BLACK
+                    drawer.fill = ColorRGBa.BLACK.opacify(0.7)
+                    drawer.rectangle(15.0, yPos - 17.0, 350.0, 150.0)
+                    drawer.fill = ColorRGBa.WHITE
                     drawer.text("DEBUG MODE (press 'd' to disable)", 20.0, yPos)
                     yPos += 25.0
                     drawer.text("Shapes: ${shapes.size}", 20.0, yPos)
@@ -691,10 +771,14 @@ fun main() = application {
 
                 // Show controls hint
                 if (shapes.isEmpty()) {
-                    drawer.fill = ColorRGBa.BLACK
+                    drawer.fill = ColorRGBa.BLACK.opacify(0.7)
+                    drawer.rectangle(15.0, height - 57.0, 350.0, 24.0)
+                    drawer.fill = ColorRGBa.WHITE
                     drawer.text("No shapes found in SVG", 20.0, height - 40.0)
                 } else {
                     drawer.fill = ColorRGBa.BLACK.opacify(0.7)
+                    drawer.rectangle(15.0, height - 37.0, 850.0, 24.0)
+                    drawer.fill = ColorRGBa.WHITE
                     drawer.text("'d' = debug | 'p' = pause | 'c' = reset | 'v' = record | ESC = exit", 20.0, height - 20.0)
                 }
             }
