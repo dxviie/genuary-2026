@@ -28,9 +28,27 @@ import kotlin.random.Random
  */
 
 fun main() = application {
+    // Load SVG before configuration to get dimensions
+    val svgFile = File("data/svg/ptpx-a4.svg")
+    val composition = loadSVG(svgFile)
+    val svgBounds = composition.root.bounds
+
+    // Define maximum display size (adjust based on your display)
+    val maxDisplayWidth = 1920.0
+    val maxDisplayHeight = 1080.0
+
+    // Calculate scale to fit display while maintaining aspect ratio
+    val scaleX = maxDisplayWidth / svgBounds.width
+    val scaleY = maxDisplayHeight / svgBounds.height
+    val displayScale = min(scaleX, scaleY)
+
+    // Calculate window size based on scaled SVG dimensions
+    val windowWidth = (svgBounds.width * displayScale).toInt()
+    val windowHeight = (svgBounds.height * displayScale).toInt()
+
     configure {
-        width = 1920
-        height = 1080
+        width = windowWidth
+        height = windowHeight
         if (displays.size > 1) display = displays[1]
     }
 
@@ -38,26 +56,12 @@ fun main() = application {
         val fontFile = File("data/fonts/default.otf")
         val font = loadFont(fontFile.toURI().toString(), 13.0)
 
-        // Load SVG
-        val svgFile = File("data/svg/ptpx-a4.svg")
-        val composition = loadSVG(svgFile)
+        // Use display scale for transforming SVG coordinates
+        val scale = displayScale
 
-        // Calculate SVG bounds and scale
-        val svgBounds = composition.root.bounds
-        val svgWidth = svgBounds.width
-        val svgHeight = svgBounds.height
-        val svgX = svgBounds.corner.x
-        val svgY = svgBounds.corner.y
-
-        val scaleX = (width * 0.8) / svgWidth
-        val scaleY = (height * 0.8) / svgHeight
-        val scale = min(scaleX, scaleY)
-
-        // Calculate offset to center the SVG
-        val scaledWidth = svgWidth * scale
-        val scaledHeight = svgHeight * scale
-        val offsetX = (width - scaledWidth) / 2.0 - svgX * scale
-        val offsetY = (height - scaledHeight) / 2.0 - svgY * scale
+        // Calculate offset to account for SVG coordinate system origin
+        val offsetX = -svgBounds.corner.x * scale
+        val offsetY = -svgBounds.corner.y * scale
 
         // Box2D setup
         val world = World(Vec2(0f, 9.8f))
@@ -81,14 +85,14 @@ fun main() = application {
         var paused = false
 
         // Joint parameters for softbodies
-        var edgeFrequency = 4f
-        var edgeDamping = 0.7f
-        var diagonalFrequency = 2f
-        var diagonalDamping = 0.8f
+        val edgeFrequency = 4f
+        val edgeDamping = 0.7f
+        val diagonalFrequency = 2f
+        val diagonalDamping = 0.8f
 
         // Inter-shape joint parameters
-        var interShapeFrequency = 1.5f
-        var interShapeDamping = 0.9f
+        val interShapeFrequency = 1.5f
+        val interShapeDamping = 0.9f
 
         // Function to generate random color
         fun randomColor(): ColorRGBa {
