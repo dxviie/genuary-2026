@@ -21,7 +21,8 @@ import kotlin.random.Random
  * Click to split a random box into 4 smaller boxes with outward forces
  */
 
-data class Box(val body: Body, val size: Double)
+data class Palette(val background: ColorRGBa, val boxBase: ColorRGBa)
+data class Box(val body: Body, val size: Double, val color: ColorRGBa)
 
 fun main() = application {
     configure {
@@ -48,10 +49,36 @@ fun main() = application {
         createWall(world, (width / PHYSICS_SCALE + wallThickness).toFloat(), (height / 2 / PHYSICS_SCALE).toFloat(),
                    wallThickness, (height / 2 / PHYSICS_SCALE).toFloat()) // Right wall
 
-        // Colors
-        val backgroundColor = ColorRGBa.fromHex(0x1a1a2e)
-        val boxColor = ColorRGBa.fromHex(0xeaeaea)
-        val initialBoxSize = (width/1.5).toDouble()
+        // Define color palettes
+        val palettes = listOf(
+            Palette(ColorRGBa.fromHex(0x1a1a2e), ColorRGBa.fromHex(0xeaeaea)), // Dark blue-grey & light grey
+            Palette(ColorRGBa.fromHex(0x0f0e17), ColorRGBa.fromHex(0xff8906)), // Dark & orange
+            Palette(ColorRGBa.fromHex(0x2d132c), ColorRGBa.fromHex(0xee4266)), // Dark purple & pink
+            Palette(ColorRGBa.fromHex(0x16213e), ColorRGBa.fromHex(0xf4a261)), // Navy & peach
+            Palette(ColorRGBa.fromHex(0x1b1b1e), ColorRGBa.fromHex(0x6fffe9)), // Charcoal & cyan
+            Palette(ColorRGBa.fromHex(0x132a13), ColorRGBa.fromHex(0xecf39e)), // Forest green & pale yellow
+            Palette(ColorRGBa.fromHex(0x2b2d42), ColorRGBa.fromHex(0xef476f)), // Midnight blue & hot pink
+            Palette(ColorRGBa.fromHex(0x191716), ColorRGBa.fromHex(0xfca311)), // Almost black & gold
+        )
+
+        var currentPalette = palettes.random()
+        val initialBoxSize = (width/1.5)
+        val maxDiff = 0.03
+
+        // Function to create a tinted version of a color
+        fun tintColor(baseColor: ColorRGBa): ColorRGBa {
+            // Apply small random variations to RGB channels
+            val rShift = Random.nextDouble(-maxDiff, maxDiff)
+            val gShift = Random.nextDouble(-maxDiff, maxDiff)
+            val bShift = Random.nextDouble(-maxDiff, maxDiff)
+
+            return ColorRGBa(
+                (baseColor.r + rShift).coerceIn(0.0, 1.0),
+                (baseColor.g + gShift).coerceIn(0.0, 1.0),
+                (baseColor.b + bShift).coerceIn(0.0, 1.0),
+                baseColor.alpha
+            )
+        }
 
         // State
         val boxes = mutableListOf<Box>()
@@ -60,7 +87,7 @@ fun main() = application {
         val minBoxSize = 10.0 // Minimum box size to prevent infinite splitting
 
         // Create a box at a specific position
-        fun createBox(centerX: Double, centerY: Double, size: Double): Box {
+        fun createBox(centerX: Double, centerY: Double, size: Double, color: ColorRGBa): Box {
             val bodyDef = BodyDef().apply {
                 type = BodyType.DYNAMIC
                 position.set((centerX / PHYSICS_SCALE).toFloat(), (centerY / PHYSICS_SCALE).toFloat())
@@ -79,7 +106,7 @@ fun main() = application {
             }
 
             body.createFixture(fixtureDef)
-            return Box(body, size)
+            return Box(body, size, color)
         }
 
         // Screen recorder
@@ -90,7 +117,7 @@ fun main() = application {
         extend(recorder)
 
         // Create initial box at center
-        boxes.add(createBox(width / 2.0, height / 2.0, initialBoxSize))
+        boxes.add(createBox(width / 2.0, height / 2.0, initialBoxSize, currentPalette.boxBase))
 
         // Split a box into 4 smaller boxes
         fun splitBox(box: Box) {
@@ -119,7 +146,9 @@ fun main() = application {
                     localOffset.x * kotlin.math.sin(originalAngle) + localOffset.y * kotlin.math.cos(originalAngle)
                 )
 
-                val newBox = createBox(centerPos.x + rotatedOffset.x, centerPos.y + rotatedOffset.y, newSize)
+                // Create new box with a tinted color from the parent
+                val newColor = tintColor(box.color)
+                val newBox = createBox(centerPos.x + rotatedOffset.x, centerPos.y + rotatedOffset.y, newSize, newColor)
 
                 // Set the new box's rotation to match the original
                 newBox.body.setTransform(newBox.body.position, originalAngle.toFloat())
@@ -168,10 +197,11 @@ fun main() = application {
                 "d" -> debugMode = !debugMode
                 "p" -> paused = !paused
                 "c" -> {
-                    // Clear all boxes and reset
+                    // Clear all boxes and reset with new palette
                     boxes.forEach { world.destroyBody(it.body) }
                     boxes.clear()
-                    boxes.add(createBox(width / 2.0, height / 2.0, initialBoxSize))
+                    currentPalette = palettes.random()
+                    boxes.add(createBox(width / 2.0, height / 2.0, initialBoxSize, currentPalette.boxBase))
                 }
                 "v" -> {
                     recorder.outputToVideo = !recorder.outputToVideo
@@ -189,7 +219,7 @@ fun main() = application {
                 world.step(1f/60f, 8, 3)
             }
 
-            drawer.clear(backgroundColor)
+            drawer.clear(currentPalette.background)
             drawer.fontMap = font
 
             // Draw all boxes
@@ -201,7 +231,7 @@ fun main() = application {
                 drawer.translate(pos)
                 drawer.rotate(Math.toDegrees(box.body.angle.toDouble()))
 
-                drawer.fill = boxColor
+                drawer.fill = box.color
                 drawer.stroke = null
                 drawer.rectangle(
                     -halfSize * PHYSICS_SCALE,
