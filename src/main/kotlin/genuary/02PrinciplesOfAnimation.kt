@@ -28,7 +28,7 @@ fun main() = application {
     configure {
         width = 1080
         height = 1080
-        display = displays[1]
+        if (displays.size > 1) display = displays[1]
     }
 
     oliveProgram {

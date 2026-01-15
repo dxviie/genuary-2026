@@ -28,7 +28,7 @@ fun main() = application {
     configure {
         width = 1080
         height = 1080
-        display = displays[1]
+        if (displays.size > 1) display = displays[1]
     }
 
     oliveProgram {
@@ -176,17 +176,46 @@ fun main() = application {
             }
         }
 
+        // Helper function to check if a point is inside a rotated box
+        fun isPointInsideBox(point: Vector2, box: Box): Boolean {
+            val boxPos = box.body.position.toOpenRNDR()
+            val boxAngle = box.body.angle.toDouble()
+
+            // Transform point to box's local space
+            val dx = point.x - boxPos.x
+            val dy = point.y - boxPos.y
+
+            // Rotate point by negative angle to get local coordinates
+            val localX = dx * kotlin.math.cos(-boxAngle) - dy * kotlin.math.sin(-boxAngle)
+            val localY = dx * kotlin.math.sin(-boxAngle) + dy * kotlin.math.cos(-boxAngle)
+
+            // Check if local coordinates are within box bounds
+            val halfSize = box.size / 2.0
+            return kotlin.math.abs(localX) <= halfSize && kotlin.math.abs(localY) <= halfSize
+        }
+
         // Mouse click handler
         mouse.buttonDown.listen { event ->
             if (event.button.ordinal != 0) return@listen // Only handle left click
 
             if (boxes.isNotEmpty()) {
+                val clickPos = mouse.position
+
                 // Find boxes that can still be split (larger than minimum size)
                 val splittableBoxes = boxes.filter { it.size / 2.0 >= minBoxSize }
 
                 if (splittableBoxes.isNotEmpty()) {
-                    val randomBox = splittableBoxes.random()
-                    splitBox(randomBox)
+                    // Check if click is inside any splittable box
+                    val clickedBox = splittableBoxes.firstOrNull { isPointInsideBox(clickPos, it) }
+
+                    if (clickedBox != null) {
+                        // Split the clicked box
+                        splitBox(clickedBox)
+                    } else {
+                        // Split a random box
+                        val randomBox = splittableBoxes.random()
+                        splitBox(randomBox)
+                    }
                 }
             }
         }
