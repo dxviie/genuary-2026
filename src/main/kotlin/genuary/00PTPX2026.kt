@@ -8,6 +8,7 @@ import org.openrndr.application
 import org.openrndr.color.ColorRGBa
 import org.openrndr.draw.loadFont
 import org.openrndr.draw.shadeStyle
+import org.openrndr.extensions.Screenshots
 import org.openrndr.extra.olive.oliveProgram
 import org.openrndr.extra.svg.loadSVG
 import org.openrndr.extra.gui.GUI
@@ -64,6 +65,8 @@ fun main() = application {
     }
 
     oliveProgram {
+        extend(Screenshots())
+
         val fontFile = File("data/fonts/default.otf")
         val font = loadFont(fontFile.toURI().toString(), 13.0)
 
@@ -167,30 +170,30 @@ fun main() = application {
         createWall(world, (width / PHYSICS_SCALE + wallThickness).toFloat(), (height / 2 / PHYSICS_SCALE).toFloat(),
                    wallThickness, (height / 2 / PHYSICS_SCALE).toFloat()) // Right wall
 
-        // Color palettes for gradient backgrounds - vibrant CMY spectrum
+        // Color palettes for gradient backgrounds - ultra saturated colors avoiding pure CMY
         data class GradientPalette(val name: String, val colors: List<ColorRGBa>)
 
         val gradientPalettes = listOf(
             GradientPalette("Spectrum 1", listOf(
-                ColorRGBa.fromHex(0xFF0080),  // Vivid magenta
-                ColorRGBa.fromHex(0x00FFFF),  // Pure cyan
-                ColorRGBa.fromHex(0xFFFF00),  // Pure yellow
-                ColorRGBa.fromHex(0xFF0000),  // Pure red
-                ColorRGBa.fromHex(0x00FF00)   // Pure green
+                ColorRGBa.fromHex(0xFF4400),  // Deep red-orange (R max, mid G, B=0)
+                ColorRGBa.fromHex(0x4400FF),  // Deep blue-violet (low R, G=0, B max)
+                ColorRGBa.fromHex(0x00FF44),  // Deep green (R=0, G max, mid B)
+                ColorRGBa.fromHex(0xFF0044),  // Hot pink (R max, G=0, mid B)
+                ColorRGBa.fromHex(0x0044FF)   // Electric blue (R=0, low G, B max)
             )),
             GradientPalette("Spectrum 2", listOf(
-                ColorRGBa.fromHex(0xFF00FF),  // Pure magenta
-                ColorRGBa.fromHex(0x00FFAA),  // Cyan-green
-                ColorRGBa.fromHex(0xFFAA00),  // Orange-yellow
-                ColorRGBa.fromHex(0x0088FF),  // Cyan-blue
-                ColorRGBa.fromHex(0xFF0066)   // Magenta-red
+                ColorRGBa.fromHex(0xFF0033),  // Scarlet (R max, G=0, low B)
+                ColorRGBa.fromHex(0x0088FF),  // Electric cyan-blue (R=0, mid G, B max)
+                ColorRGBa.fromHex(0x88FF00),  // Lime (mid R, G max, B=0)
+                ColorRGBa.fromHex(0xFF0088),  // Deep magenta-pink (R max, G=0, mid B)
+                ColorRGBa.fromHex(0x00FF88)   // Turquoise (R=0, G max, mid B)
             )),
             GradientPalette("Spectrum 3", listOf(
-                ColorRGBa.fromHex(0xDD00FF),  // Violet-magenta
-                ColorRGBa.fromHex(0x00DDFF),  // Bright cyan
-                ColorRGBa.fromHex(0xDDFF00),  // Bright yellow-green
-                ColorRGBa.fromHex(0xFF6600),  // Vivid orange
-                ColorRGBa.fromHex(0x00FFCC)   // Cyan-turquoise
+                ColorRGBa.fromHex(0xFF3300),  // Blood orange (R max, low G, B=0)
+                ColorRGBa.fromHex(0x8800FF),  // Deep purple (mid R, G=0, B max)
+                ColorRGBa.fromHex(0x00FF33),  // Spring green (R=0, G max, low B)
+                ColorRGBa.fromHex(0xFF0066),  // Rose (R max, G=0, mid B)
+                ColorRGBa.fromHex(0x0066FF)   // Azure (R=0, mid G, B max)
             ))
         )
 
@@ -659,7 +662,7 @@ fun main() = application {
 
                 // Draw edges for all shapes in group
                 drawer.fill = null
-                drawer.stroke = ColorRGBa.BLACK
+                drawer.stroke = ColorRGBa.WHITE
                 drawer.strokeWeight = 2.0
 
                 groupSoftBodies.forEach { softBody ->
@@ -721,6 +724,24 @@ fun main() = application {
                     drawer.lineSegment(p1, p2)
                 }
             }
+            else {
+                drawer.stroke = ColorRGBa.WHITE
+                drawer.strokeWeight = 4.0
+                interShapeJoints.forEach { joint ->
+                    val p1 = joint.bodyA.position.toOpenRNDR()
+                    val p2 = joint.bodyB.position.toOpenRNDR()
+                    drawer.lineSegment(p1, p2)
+                }
+            }
+
+            // draw plot frames
+            drawer.stroke = ColorRGBa.WHITE
+            drawer.fill = null
+            drawer.strokeWeight = 20.0
+            drawer.rectangle(0.0, 0.0, width/2.0, height/2.0)
+            drawer.rectangle(width/2.0, 0.0, width/2.0, height/2.0)
+            drawer.rectangle(0.0, height/2.0, width/2.0, height/2.0)
+            drawer.rectangle(width/2.0, height/2.0, width/2.0, height/2.0)
 
             // Draw status text with background for visibility
             drawer.stroke = null
@@ -776,10 +797,10 @@ fun main() = application {
                     drawer.fill = ColorRGBa.WHITE
                     drawer.text("No shapes found in SVG", 20.0, height - 40.0)
                 } else {
-                    drawer.fill = ColorRGBa.BLACK.opacify(0.7)
-                    drawer.rectangle(15.0, height - 37.0, 850.0, 24.0)
-                    drawer.fill = ColorRGBa.WHITE
-                    drawer.text("'d' = debug | 'p' = pause | 'c' = reset | 'v' = record | ESC = exit", 20.0, height - 20.0)
+//                    drawer.fill = ColorRGBa.BLACK.opacify(0.7)
+//                    drawer.rectangle(15.0, height - 37.0, 850.0, 24.0)
+//                    drawer.fill = ColorRGBa.WHITE
+//                    drawer.text("'d' = debug | 'p' = pause | 'c' = reset | 'v' = record | ESC = exit", 20.0, height - 20.0)
                 }
             }
         }
