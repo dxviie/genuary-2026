@@ -9,6 +9,8 @@ import org.openrndr.color.ColorRGBa
 import org.openrndr.draw.loadFont
 import org.openrndr.extra.olive.oliveProgram
 import org.openrndr.extra.svg.loadSVG
+import org.openrndr.extra.gui.GUI
+import org.openrndr.extra.parameters.*
 import org.openrndr.ffmpeg.ScreenRecorder
 import org.openrndr.math.Vector2
 import org.openrndr.shape.ShapeContour
@@ -64,6 +66,53 @@ fun main() = application {
         val fontFile = File("data/fonts/default.otf")
         val font = loadFont(fontFile.toURI().toString(), 13.0)
 
+        // Physics settings class
+        class PhysicsSettings {
+            @DoubleParameter("Gravity", 0.0, 20.0)
+            var gravity = 0.0
+
+            @DoubleParameter("Point Density", 5.0, 100.0)
+            var pointDensity = 10.0
+
+            @DoubleParameter("Max Initial Force", 0.0, 0.02)
+            var maxInitialForce = 0.005
+
+            @DoubleParameter("Edge Frequency", 0.5, 10.0)
+            var edgeFrequency = 4.0
+
+            @DoubleParameter("Edge Damping", 0.0, 1.0)
+            var edgeDamping = 0.7
+
+            @DoubleParameter("Diagonal Frequency", 0.5, 10.0)
+            var diagonalFrequency = 2.0
+
+            @DoubleParameter("Diagonal Damping", 0.0, 1.0)
+            var diagonalDamping = 0.8
+
+            @BooleanParameter("Enable Diagonals")
+            var enableDiagonalJoints = true
+
+            @DoubleParameter("Inter-Shape Frequency", 0.5, 10.0)
+            var interShapeFrequency = 1.5
+
+            @DoubleParameter("Inter-Shape Damping", 0.0, 1.0)
+            var interShapeDamping = 0.9
+
+            @IntParameter("Connection Lines", 10, 200)
+            var numConnectionLines = 100
+
+            @IntParameter("Max Inter-Shape Joints", 10, 200)
+            var maxInterShapeJoints = 50
+        }
+
+        val settings = PhysicsSettings()
+
+        // GUI setup
+        val gui = GUI()
+        gui.add(settings, "Physics Settings")
+        gui.visible = false  // Hidden by default, toggle with 'd' key
+        extend(gui)
+
         // Reload SVG (needed for olive hot-reload)
         val svgFile = File("data/svg/ptpx-a4.svg")
         val composition = loadSVG(svgFile)
@@ -104,7 +153,7 @@ fun main() = application {
         val offsetY = -svgTop * scale
 
         // Box2D setup
-        val world = World(Vec2(0f, 0f))  // Gravity pointing down
+        val world = World(Vec2(0f, settings.gravity.toFloat()))  // Gravity pointing down
 
         // Create walls
         val wallThickness = 50f / PHYSICS_SCALE.toFloat()
@@ -124,17 +173,6 @@ fun main() = application {
         val interShapeJoints = mutableListOf<DistanceJoint>()
         var debugMode = false
         var paused = true
-
-        // Joint parameters for softbodies
-        val edgeFrequency = 4f
-        val edgeDamping = 0.7f
-        val diagonalFrequency = 2f
-        val diagonalDamping = 0.8f
-        val enableDiagonalJoints = true  // Disable to reduce Box2D load
-
-        // Inter-shape joint parameters
-        val interShapeFrequency = 1.5f
-        val interShapeDamping = 0.9f
 
         // Function to generate random color
         fun randomColor(): ColorRGBa {
@@ -218,7 +256,7 @@ fun main() = application {
                 shapeNode.shape.contours.forEach { contour ->
                     if (contour.closed) {
                         // Sample points along the contour (increased distance to reduce body count)
-                        val numPoints = max(6, (contour.length * scale / 10.0).toInt()).coerceAtMost(50)
+                        val numPoints = max(6, (contour.length * scale / settings.pointDensity).toInt()).coerceAtMost(50)
                         val points = sampleContour(contour, numPoints, shapeTransform)
 
                         if (points.size >= 3) {
@@ -227,13 +265,13 @@ fun main() = application {
                             // Update edge joint parameters
                             softBody.edgeJoints.forEach { joint ->
                                 if (joint is DistanceJoint) {
-                                    joint.frequency = edgeFrequency
-                                    joint.dampingRatio = edgeDamping
+                                    joint.frequency = settings.edgeFrequency.toFloat()
+                                    joint.dampingRatio = settings.edgeDamping.toFloat()
                                 }
                             }
 
                             // Optionally remove diagonal joints to reduce Box2D load
-                            if (!enableDiagonalJoints) {
+                            if (!settings.enableDiagonalJoints) {
                                 // Destroy diagonal joints to reduce interconnections
                                 softBody.diagonalJoints.forEach { joint ->
                                     world.destroyJoint(joint)
@@ -242,14 +280,14 @@ fun main() = application {
                                 // Update diagonal joint parameters
                                 softBody.diagonalJoints.forEach { joint ->
                                     if (joint is DistanceJoint) {
-                                        joint.frequency = diagonalFrequency
-                                        joint.dampingRatio = diagonalDamping
+                                        joint.frequency = settings.diagonalFrequency.toFloat()
+                                        joint.dampingRatio = settings.diagonalDamping.toFloat()
                                     }
                                 }
                             }
 
                             // Apply tiny random initial forces to all bodies
-                            val maxForce = .005
+                            val maxForce = settings.maxInitialForce
                             softBody.bodies.forEach { body ->
                                 val forceX = Random.nextDouble(-maxForce, maxForce).toFloat()
                                 val forceY = Random.nextDouble(-maxForce, maxForce).toFloat()
@@ -267,8 +305,6 @@ fun main() = application {
             }
 
             // Create inter-shape joints by shooting random lines
-            val numConnectionLines = 100
-            val maxInterShapeJoints = 50  // Global limit on inter-shape joints
             var jointsCreated = 0
 
             // Data class to track all intersections (including screen boundaries)
@@ -279,8 +315,8 @@ fun main() = application {
                 val body: Body? = null
             )
 
-            for (lineAttempt in 0 until numConnectionLines * 2) {  // Try more lines since we filter for even intersections
-                if (jointsCreated >= maxInterShapeJoints) break
+            for (lineAttempt in 0 until settings.numConnectionLines * 2) {  // Try more lines since we filter for even intersections
+                if (jointsCreated >= settings.maxInterShapeJoints) break
 
                 // Generate random line across the scene (larger than screen)
                 val angle = Random.nextDouble(0.0, kotlin.math.PI * 2.0)
@@ -360,7 +396,7 @@ fun main() = application {
 
                 // Create joints by pairing consecutive intersections
                 for (pairIdx in 0 until intersections.size / 2) {
-                    if (jointsCreated >= maxInterShapeJoints) break
+                    if (jointsCreated >= settings.maxInterShapeJoints) break
 
                     val idx1 = pairIdx * 2
                     val idx2 = pairIdx * 2 + 1
@@ -381,8 +417,8 @@ fun main() = application {
                         world,
                         body1,
                         body2,
-                        frequency = interShapeFrequency,
-                        damping = interShapeDamping
+                        frequency = settings.interShapeFrequency.toFloat(),
+                        damping = settings.interShapeDamping.toFloat()
                     )
                     if (joint is DistanceJoint) {
                         interShapeJoints.add(joint)
@@ -394,7 +430,7 @@ fun main() = application {
             // Print diagnostics
             val totalBodies = shapes.sumOf { it.bodies.size }
             val totalEdgeJoints = shapes.sumOf { it.edgeJoints.size }
-            val diagonalStatus = if (enableDiagonalJoints) {
+            val diagonalStatus = if (settings.enableDiagonalJoints) {
                 val totalDiagonalJoints = shapes.sumOf { it.diagonalJoints.size }
                 "$totalDiagonalJoints diagonal joints"
             } else {
@@ -426,7 +462,10 @@ fun main() = application {
         // Keyboard controls
         keyboard.keyDown.listen { event ->
             when (event.name) {
-                "d" -> debugMode = !debugMode
+                "d" -> {
+                    debugMode = !debugMode
+                    gui.visible = debugMode
+                }
                 "p" -> paused = !paused
                 "c" -> initializeScene()
                 "v" -> {
@@ -440,6 +479,34 @@ fun main() = application {
         }
 
         extend {
+            // Update gravity from settings
+            world.gravity = Vec2(0f, settings.gravity.toFloat())
+
+            // Update joint parameters from settings
+            shapes.forEach { softBody ->
+                // Update edge joints
+                softBody.edgeJoints.forEach { joint ->
+                    if (joint is DistanceJoint) {
+                        joint.frequency = settings.edgeFrequency.toFloat()
+                        joint.dampingRatio = settings.edgeDamping.toFloat()
+                    }
+                }
+
+                // Update diagonal joints
+                softBody.diagonalJoints.forEach { joint ->
+                    if (joint is DistanceJoint) {
+                        joint.frequency = settings.diagonalFrequency.toFloat()
+                        joint.dampingRatio = settings.diagonalDamping.toFloat()
+                    }
+                }
+            }
+
+            // Update inter-shape joints
+            interShapeJoints.forEach { joint ->
+                joint.frequency = settings.interShapeFrequency.toFloat()
+                joint.dampingRatio = settings.interShapeDamping.toFloat()
+            }
+
             // Update physics only if not paused
             if (!paused) {
                 world.step(1f/60f, 8, 3)
@@ -556,7 +623,7 @@ fun main() = application {
                         }
 
                         // Draw diagonal joints in magenta (if enabled)
-                        if (enableDiagonalJoints) {
+                        if (settings.enableDiagonalJoints) {
                             drawer.stroke = ColorRGBa.MAGENTA
                             drawer.strokeWeight = 1.5
                             softBody.diagonalJoints.forEach { joint ->
@@ -614,7 +681,7 @@ fun main() = application {
                     drawer.text("SVG: ${svgWidth.toInt()}x${svgHeight.toInt()} " +
                                 "@ scale ${String.format("%.2f", scale)}", 20.0, yPos)
                     yPos += 25.0
-                    val legend = if (enableDiagonalJoints) {
+                    val legend = if (settings.enableDiagonalJoints) {
                         "Red = Inter-shape | Cyan = Edges | Magenta = Diagonals"
                     } else {
                         "Red = Inter-shape | Cyan = Edges"
