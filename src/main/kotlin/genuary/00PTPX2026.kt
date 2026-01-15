@@ -28,27 +28,24 @@ import kotlin.random.Random
  */
 
 fun main() = application {
-    // Load SVG before configuration to get dimensions
-    val svgFile = File("data/svg/ptpx-a4.svg")
-    val composition = loadSVG(svgFile)
-    val svgBounds = composition.root.bounds
-
-    // Define maximum display size (adjust based on your display)
-    val maxDisplayWidth = 1920.0
-    val maxDisplayHeight = 1080.0
-
-    // Calculate scale to fit display while maintaining aspect ratio
-    val scaleX = maxDisplayWidth / svgBounds.width
-    val scaleY = maxDisplayHeight / svgBounds.height
-    val displayScale = min(scaleX, scaleY)
-
-    // Calculate window size based on scaled SVG dimensions
-    val windowWidth = (svgBounds.width * displayScale).toInt()
-    val windowHeight = (svgBounds.height * displayScale).toInt()
-
     configure {
-        width = windowWidth
-        height = windowHeight
+        // Load SVG to get dimensions for window config
+        val svgFile = File("data/svg/ptpx-a4.svg")
+        val composition = loadSVG(svgFile)
+        val svgBounds = composition.root.bounds
+
+        // Define maximum display size
+        val maxDisplayWidth = 1920.0
+        val maxDisplayHeight = 1080.0
+
+        // Calculate scale to fit display
+        val scaleX = maxDisplayWidth / svgBounds.width
+        val scaleY = maxDisplayHeight / svgBounds.height
+        val displayScale = min(scaleX, scaleY)
+
+        // Set window size
+        width = (svgBounds.width * displayScale).toInt()
+        height = (svgBounds.height * displayScale).toInt()
         if (displays.size > 1) display = displays[1]
     }
 
@@ -56,15 +53,23 @@ fun main() = application {
         val fontFile = File("data/fonts/default.otf")
         val font = loadFont(fontFile.toURI().toString(), 13.0)
 
-        // Use display scale for transforming SVG coordinates
-        val scale = displayScale
+        // Reload SVG (needed for olive hot-reload)
+        val svgFile = File("data/svg/ptpx-a4.svg")
+        val composition = loadSVG(svgFile)
+        val svgBounds = composition.root.bounds
 
-        // Calculate offset to account for SVG coordinate system origin
+        // Calculate scale and offset
+        val maxDisplayWidth = 1920.0
+        val maxDisplayHeight = 1080.0
+        val scaleX = maxDisplayWidth / svgBounds.width
+        val scaleY = maxDisplayHeight / svgBounds.height
+        val scale = min(scaleX, scaleY)
+
         val offsetX = -svgBounds.corner.x * scale
         val offsetY = -svgBounds.corner.y * scale
 
         // Box2D setup
-        val world = World(Vec2(0f, 9.8f))
+        val world = World(Vec2(0f, 0f))
 
         // Create walls
         val wallThickness = 50f / PHYSICS_SCALE.toFloat()
@@ -82,13 +87,14 @@ fun main() = application {
         val shapeColors = mutableMapOf<SoftBody, ColorRGBa>()
         val interShapeJoints = mutableListOf<DistanceJoint>()
         var debugMode = false
-        var paused = false
+        var paused = true
 
         // Joint parameters for softbodies
         val edgeFrequency = 4f
         val edgeDamping = 0.7f
         val diagonalFrequency = 2f
         val diagonalDamping = 0.8f
+        val enableDiagonalJoints = true  // Disable to reduce Box2D load
 
         // Inter-shape joint parameters
         val interShapeFrequency = 1.5f
@@ -107,13 +113,15 @@ fun main() = application {
             return Vector2(p.x * scale + offsetX, p.y * scale + offsetY)
         }
 
-        // Function to sample points from a contour
-        fun sampleContour(contour: ShapeContour, numPoints: Int): List<Vector2> {
+        // Function to sample points from a contour with shape transform
+        fun sampleContour(contour: ShapeContour, numPoints: Int, shapeTransform: org.openrndr.math.Matrix44): List<Vector2> {
             val points = mutableListOf<Vector2>()
             for (i in 0 until numPoints) {
                 val t = i.toDouble() / numPoints
                 val point = contour.position(t)
-                points.add(transformPoint(point))
+                // Apply shape transform first, then screen transform
+                val transformedPoint = (shapeTransform * point.xy01).xy
+                points.add(transformPoint(transformedPoint))
             }
             return points
         }
@@ -164,27 +172,40 @@ fun main() = application {
             interShapeJoints.clear()
 
             // Extract shapes from SVG and create softbodies
-            composition.findShapes().forEach { shape ->
-                shape.shape.contours.forEach { contour ->
+            composition.findShapes().forEach { shapeNode ->
+                // Get the shape's effective transform (includes all parent transforms)
+                val shapeTransform = shapeNode.effectiveTransform
+
+                shapeNode.shape.contours.forEach { contour ->
                     if (contour.closed) {
-                        // Sample points along the contour
-                        val numPoints = max(8, (contour.length * scale / 30.0).toInt())
-                        val points = sampleContour(contour, numPoints)
+                        // Sample points along the contour (increased distance to reduce body count)
+                        val numPoints = max(6, (contour.length * scale / 50.0).toInt()).coerceAtMost(50)
+                        val points = sampleContour(contour, numPoints, shapeTransform)
 
                         if (points.size >= 3) {
                             val softBody = createSoftBody(world, points)
 
-                            // Update joint parameters
+                            // Update edge joint parameters
                             softBody.edgeJoints.forEach { joint ->
                                 if (joint is DistanceJoint) {
                                     joint.frequency = edgeFrequency
                                     joint.dampingRatio = edgeDamping
                                 }
                             }
-                            softBody.diagonalJoints.forEach { joint ->
-                                if (joint is DistanceJoint) {
-                                    joint.frequency = diagonalFrequency
-                                    joint.dampingRatio = diagonalDamping
+
+                            // Optionally remove diagonal joints to reduce Box2D load
+                            if (!enableDiagonalJoints) {
+                                // Destroy diagonal joints to reduce interconnections
+                                softBody.diagonalJoints.forEach { joint ->
+                                    world.destroyJoint(joint)
+                                }
+                            } else {
+                                // Update diagonal joint parameters
+                                softBody.diagonalJoints.forEach { joint ->
+                                    if (joint is DistanceJoint) {
+                                        joint.frequency = diagonalFrequency
+                                        joint.dampingRatio = diagonalDamping
+                                    }
                                 }
                             }
 
@@ -196,8 +217,13 @@ fun main() = application {
             }
 
             // Create inter-shape joints by shooting random lines
-            val numConnectionLines = 30
+            val numConnectionLines = 10  // Reduced to prevent Box2D overflow
+            val maxInterShapeJoints = 50  // Global limit on inter-shape joints
+            var jointsCreated = 0
+
             for (i in 0 until numConnectionLines) {
+                if (jointsCreated >= maxInterShapeJoints) break
+
                 // Generate random line across the scene
                 val angle = Random.nextDouble(0.0, kotlin.math.PI * 2.0)
                 val centerX = width / 2.0
@@ -235,6 +261,8 @@ fun main() = application {
 
                 // Create joints between consecutive intersections
                 for (j in 0 until intersections.size - 1) {
+                    if (jointsCreated >= maxInterShapeJoints) break
+
                     val int1 = intersections[j]
                     val int2 = intersections[j + 1]
 
@@ -249,10 +277,24 @@ fun main() = application {
                         )
                         if (joint is DistanceJoint) {
                             interShapeJoints.add(joint)
+                            jointsCreated++
                         }
                     }
                 }
             }
+
+            // Print diagnostics
+            val totalBodies = shapes.sumOf { it.bodies.size }
+            val totalEdgeJoints = shapes.sumOf { it.edgeJoints.size }
+            val diagonalStatus = if (enableDiagonalJoints) {
+                val totalDiagonalJoints = shapes.sumOf { it.diagonalJoints.size }
+                "$totalDiagonalJoints diagonal joints"
+            } else {
+                "diagonal joints disabled"
+            }
+            println("Scene initialized: ${shapes.size} shapes, $totalBodies bodies, " +
+                    "$totalEdgeJoints edge joints, $diagonalStatus, " +
+                    "${interShapeJoints.size} inter-shape joints")
         }
 
         // Initialize the scene on startup
@@ -340,13 +382,15 @@ fun main() = application {
                         drawer.lineSegment(p1, p2)
                     }
 
-                    // Draw diagonal joints in magenta
-                    drawer.stroke = ColorRGBa.MAGENTA
-                    drawer.strokeWeight = 1.5
-                    softBody.diagonalJoints.forEach { joint ->
-                        val p1 = joint.bodyA.position.toOpenRNDR()
-                        val p2 = joint.bodyB.position.toOpenRNDR()
-                        drawer.lineSegment(p1, p2)
+                    // Draw diagonal joints in magenta (if enabled)
+                    if (enableDiagonalJoints) {
+                        drawer.stroke = ColorRGBa.MAGENTA
+                        drawer.strokeWeight = 1.5
+                        softBody.diagonalJoints.forEach { joint ->
+                            val p1 = joint.bodyA.position.toOpenRNDR()
+                            val p2 = joint.bodyB.position.toOpenRNDR()
+                            drawer.lineSegment(p1, p2)
+                        }
                     }
                 }
             }
@@ -393,7 +437,12 @@ fun main() = application {
                     yPos += 25.0
                     drawer.text("Inter-shape joints: ${interShapeJoints.size}", 20.0, yPos)
                     yPos += 25.0
-                    drawer.text("Red = Inter-shape | Cyan = Edges | Magenta = Diagonals", 20.0, yPos)
+                    val legend = if (enableDiagonalJoints) {
+                        "Red = Inter-shape | Cyan = Edges | Magenta = Diagonals"
+                    } else {
+                        "Red = Inter-shape | Cyan = Edges"
+                    }
+                    drawer.text(legend, 20.0, yPos)
                 }
 
                 // Show controls hint
