@@ -97,26 +97,36 @@ fun main() = application {
             val centerPos = box.body.position.toOpenRNDR()
             val originalVelocity = box.body.linearVelocity
             val originalAngularVelocity = box.body.angularVelocity
+            val originalAngle = box.body.angle.toDouble()
             val newSize = box.size / 2.0
 
             // Remove the original box
             world.destroyBody(box.body)
             boxes.remove(box)
 
-            // Create 4 new boxes at quadrants
-            val offsets = listOf(
+            // Create 4 new boxes at quadrants in local space
+            val localOffsets = listOf(
                 Vector2(-newSize / 2, -newSize / 2),  // Top-left
                 Vector2(newSize / 2, -newSize / 2),   // Top-right
                 Vector2(-newSize / 2, newSize / 2),   // Bottom-left
                 Vector2(newSize / 2, newSize / 2)     // Bottom-right
             )
 
-            for (offset in offsets) {
-                val newBox = createBox(centerPos.x + offset.x, centerPos.y + offset.y, newSize)
+            for (localOffset in localOffsets) {
+                // Rotate the offset by the original box's angle to get world space position
+                val rotatedOffset = Vector2(
+                    localOffset.x * kotlin.math.cos(originalAngle) - localOffset.y * kotlin.math.sin(originalAngle),
+                    localOffset.x * kotlin.math.sin(originalAngle) + localOffset.y * kotlin.math.cos(originalAngle)
+                )
 
-                // Apply random outward force from center
-                val forceDirection = offset.normalized
-                val forceMagnitude = Random.nextDouble(8.0, 15.0)
+                val newBox = createBox(centerPos.x + rotatedOffset.x, centerPos.y + rotatedOffset.y, newSize)
+
+                // Set the new box's rotation to match the original
+                newBox.body.setTransform(newBox.body.position, originalAngle.toFloat())
+
+                // Apply random outward force from center along the rotated direction
+                val forceDirection = rotatedOffset.normalized
+                val forceMagnitude = Random.nextDouble(10.0, 50.0)
                 val force = forceDirection * forceMagnitude
 
                 newBox.body.applyLinearImpulse(
