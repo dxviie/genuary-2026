@@ -1,17 +1,27 @@
 package genuary
 
+import org.jbox2d.collision.shapes.PolygonShape
+import org.jbox2d.common.Vec2
+import org.jbox2d.dynamics.*
+import org.openrndr.KEY_ESCAPE
 import org.openrndr.application
 import org.openrndr.color.ColorRGBa
 import org.openrndr.draw.loadFont
 import org.openrndr.extra.olive.oliveProgram
+import org.openrndr.ffmpeg.ScreenRecorder
+import org.openrndr.math.Vector2
+import utils.PHYSICS_SCALE
+import utils.createWall
+import utils.toOpenRNDR
 import java.io.File
+import kotlin.random.Random
 
 /**
- *  This is a template for a live program.
- *
- *  It uses oliveProgram {} instead of program {}. All code inside the
- *  oliveProgram {} can be changed while the program is running.
+ * 12 Boxes Only
+ * Click to split a random box into 4 smaller boxes with outward forces
  */
+
+data class Box(val body: Body, val size: Double)
 
 fun main() = application {
     configure {
@@ -24,9 +34,236 @@ fun main() = application {
         val fontFile = File("data/fonts/default.otf")
         val font = loadFont(fontFile.toURI().toString(), 13.0)
 
+        // Box2D setup
+        val world = World(Vec2(0f, 0f)) // Gravity pointing down
+
+        // Create walls (floor, ceiling, left, right)
+        val wallThickness = 50f / PHYSICS_SCALE.toFloat()
+        createWall(world, (width / 2 / PHYSICS_SCALE).toFloat(), (height / PHYSICS_SCALE + wallThickness).toFloat(),
+                   (width / 2 / PHYSICS_SCALE).toFloat(), wallThickness) // Floor
+        createWall(world, (width / 2 / PHYSICS_SCALE).toFloat(), -wallThickness,
+                   (width / 2 / PHYSICS_SCALE).toFloat(), wallThickness) // Ceiling
+        createWall(world, -wallThickness, (height / 2 / PHYSICS_SCALE).toFloat(),
+                   wallThickness, (height / 2 / PHYSICS_SCALE).toFloat()) // Left wall
+        createWall(world, (width / PHYSICS_SCALE + wallThickness).toFloat(), (height / 2 / PHYSICS_SCALE).toFloat(),
+                   wallThickness, (height / 2 / PHYSICS_SCALE).toFloat()) // Right wall
+
+        // Colors
+        val backgroundColor = ColorRGBa.fromHex(0x1a1a2e)
+        val boxColor = ColorRGBa.fromHex(0xeaeaea)
+        val initialBoxSize = (width/1.5).toDouble()
+
+        // State
+        val boxes = mutableListOf<Box>()
+        var debugMode = false
+        var paused = false
+        val minBoxSize = 10.0 // Minimum box size to prevent infinite splitting
+
+        // Create a box at a specific position
+        fun createBox(centerX: Double, centerY: Double, size: Double): Box {
+            val bodyDef = BodyDef().apply {
+                type = BodyType.DYNAMIC
+                position.set((centerX / PHYSICS_SCALE).toFloat(), (centerY / PHYSICS_SCALE).toFloat())
+            }
+            val body = world.createBody(bodyDef)
+
+            val boxShape = PolygonShape().apply {
+                setAsBox((size / 2 / PHYSICS_SCALE).toFloat(), (size / 2 / PHYSICS_SCALE).toFloat())
+            }
+
+            val fixtureDef = FixtureDef().apply {
+                shape = boxShape
+                density = 1f
+                restitution = 0.3f
+                friction = 0.5f
+            }
+
+            body.createFixture(fixtureDef)
+            return Box(body, size)
+        }
+
+        // Screen recorder
+        val recorder = ScreenRecorder().apply {
+            outputToVideo = false
+            frameRate = 60
+        }
+        extend(recorder)
+
+        // Create initial box at center
+        boxes.add(createBox(width / 2.0, height / 2.0, initialBoxSize))
+
+        // Split a box into 4 smaller boxes
+        fun splitBox(box: Box) {
+            val centerPos = box.body.position.toOpenRNDR()
+            val originalVelocity = box.body.linearVelocity
+            val originalAngularVelocity = box.body.angularVelocity
+            val newSize = box.size / 2.0
+
+            // Remove the original box
+            world.destroyBody(box.body)
+            boxes.remove(box)
+
+            // Create 4 new boxes at quadrants
+            val offsets = listOf(
+                Vector2(-newSize / 2, -newSize / 2),  // Top-left
+                Vector2(newSize / 2, -newSize / 2),   // Top-right
+                Vector2(-newSize / 2, newSize / 2),   // Bottom-left
+                Vector2(newSize / 2, newSize / 2)     // Bottom-right
+            )
+
+            for (offset in offsets) {
+                val newBox = createBox(centerPos.x + offset.x, centerPos.y + offset.y, newSize)
+
+                // Apply random outward force from center
+                val forceDirection = offset.normalized
+                val forceMagnitude = Random.nextDouble(8.0, 15.0)
+                val force = forceDirection * forceMagnitude
+
+                newBox.body.applyLinearImpulse(
+                    Vec2((force.x / PHYSICS_SCALE).toFloat(), (force.y / PHYSICS_SCALE).toFloat()),
+                    newBox.body.worldCenter
+                )
+
+                // Preserve some of the original velocity
+                newBox.body.linearVelocity = Vec2(
+                    originalVelocity.x * 0.5f,
+                    originalVelocity.y * 0.5f
+                )
+
+                // Add some random spin
+                newBox.body.angularVelocity = originalAngularVelocity * 0.5f + Random.nextDouble(-2.0, 2.0).toFloat()
+
+                boxes.add(newBox)
+            }
+        }
+
+        // Mouse click handler
+        mouse.buttonDown.listen { event ->
+            if (event.button.ordinal != 0) return@listen // Only handle left click
+
+            if (boxes.isNotEmpty()) {
+                // Find boxes that can still be split (larger than minimum size)
+                val splittableBoxes = boxes.filter { it.size / 2.0 >= minBoxSize }
+
+                if (splittableBoxes.isNotEmpty()) {
+                    val randomBox = splittableBoxes.random()
+                    splitBox(randomBox)
+                }
+            }
+        }
+
+        // Keyboard controls
+        keyboard.keyDown.listen { event ->
+            when (event.name) {
+                "d" -> debugMode = !debugMode
+                "p" -> paused = !paused
+                "c" -> {
+                    // Clear all boxes and reset
+                    boxes.forEach { world.destroyBody(it.body) }
+                    boxes.clear()
+                    boxes.add(createBox(width / 2.0, height / 2.0, initialBoxSize))
+                }
+                "v" -> {
+                    recorder.outputToVideo = !recorder.outputToVideo
+                    println(if (recorder.outputToVideo) "Recording" else "Paused")
+                }
+            }
+            when (event.key) {
+                KEY_ESCAPE -> program.application.exit()
+            }
+        }
+
         extend {
+            // Update physics only if not paused
+            if (!paused) {
+                world.step(1f/60f, 8, 3)
+            }
+
+            drawer.clear(backgroundColor)
             drawer.fontMap = font
-            drawer.clear(ColorRGBa.PINK)
+
+            // Draw all boxes
+            boxes.forEach { box ->
+                val pos = box.body.position.toOpenRNDR()
+                val halfSize = (box.size / 2 / PHYSICS_SCALE).toFloat()
+
+                drawer.pushTransforms()
+                drawer.translate(pos)
+                drawer.rotate(Math.toDegrees(box.body.angle.toDouble()))
+
+                drawer.fill = boxColor
+                drawer.stroke = null
+                drawer.rectangle(
+                    -halfSize * PHYSICS_SCALE,
+                    -halfSize * PHYSICS_SCALE,
+                    box.size,
+                    box.size
+                )
+
+                // Draw outline in debug mode
+                if (debugMode) {
+                    drawer.fill = null
+                    drawer.stroke = ColorRGBa.RED
+                    drawer.strokeWeight = 2.0
+                    drawer.rectangle(
+                        -halfSize * PHYSICS_SCALE,
+                        -halfSize * PHYSICS_SCALE,
+                        box.size,
+                        box.size
+                    )
+
+                    // Draw center point
+                    drawer.fill = ColorRGBa.RED
+                    drawer.stroke = null
+                    drawer.circle(0.0, 0.0, 3.0)
+                }
+
+                drawer.popTransforms()
+            }
+
+            // Draw status text
+            drawer.fill = ColorRGBa.WHITE
+            drawer.stroke = null
+
+            // When recording, only show red dot unless in debug mode
+            if (recorder.outputToVideo) {
+                drawer.fill = ColorRGBa.RED
+                drawer.circle(30.0, 30.0, 10.0)
+
+                if (debugMode) {
+                    drawer.fill = ColorRGBa.RED
+                    drawer.text("● RECORDING (press 'v' to stop)", 50.0, 35.0)
+                }
+            }
+
+            // Show other info only if not recording OR in debug mode
+            if (!recorder.outputToVideo || debugMode) {
+                var yPos = if (recorder.outputToVideo) 60.0 else 30.0
+
+                if (paused) {
+                    drawer.fill = ColorRGBa.WHITE
+                    drawer.text("PAUSED (press 'p' to resume)", 20.0, yPos)
+                    yPos += 25.0
+                }
+
+                if (debugMode) {
+                    drawer.fill = ColorRGBa.WHITE
+                    drawer.text("DEBUG MODE (press 'd' to disable)", 20.0, yPos)
+                    yPos += 25.0
+                    drawer.text("Boxes: ${boxes.size}", 20.0, yPos)
+                    yPos += 25.0
+                    val splittable = boxes.count { it.size / 2.0 >= minBoxSize }
+                    drawer.text("Splittable: $splittable", 20.0, yPos)
+                    yPos += 25.0
+                }
+
+                // Show controls hint
+                if (boxes.size <= 4) {
+                    drawer.fill = ColorRGBa.WHITE
+                    drawer.text("Click to split a random box into 4 smaller boxes", 20.0, height - 40.0)
+                    drawer.text("'d' = debug | 'p' = pause | 'c' = reset | 'v' = record | ESC = exit", 20.0, height - 20.0)
+                }
+            }
         }
     }
 }
