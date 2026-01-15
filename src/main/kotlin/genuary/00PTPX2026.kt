@@ -104,7 +104,7 @@ fun main() = application {
         val offsetY = -svgTop * scale
 
         // Box2D setup
-        val world = World(Vec2(0f, 0f))
+        val world = World(Vec2(0f, 0f))  // Gravity pointing down
 
         // Create walls
         val wallThickness = 50f / PHYSICS_SCALE.toFloat()
@@ -244,6 +244,14 @@ fun main() = application {
                                 }
                             }
 
+                            // Apply tiny random initial forces to all bodies
+                            val maxForce = .003
+                            softBody.bodies.forEach { body ->
+                                val forceX = Random.nextDouble(-maxForce, maxForce).toFloat()
+                                val forceY = Random.nextDouble(-maxForce, maxForce).toFloat()
+                                body.applyLinearImpulse(Vec2(forceX, forceY), body.worldCenter)
+                            }
+
                             shapes.add(softBody)
                             shapeColors[softBody] = randomColor()
                         }
@@ -252,7 +260,7 @@ fun main() = application {
             }
 
             // Create inter-shape joints by shooting random lines
-            val numConnectionLines = 10  // Reduced to prevent Box2D overflow
+            val numConnectionLines = 100  // Reduced to prevent Box2D overflow
             val maxInterShapeJoints = 50  // Global limit on inter-shape joints
             var jointsCreated = 0
 
