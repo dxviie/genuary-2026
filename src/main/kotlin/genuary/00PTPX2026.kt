@@ -120,6 +120,7 @@ fun main() = application {
         // State
         val shapes = mutableListOf<SoftBody>()
         val shapeColors = mutableMapOf<SoftBody, ColorRGBa>()
+        val shapeGroups = mutableMapOf<Int, MutableList<SoftBody>>()  // Group softbodies by their source SVG shape
         val interShapeJoints = mutableListOf<DistanceJoint>()
         var debugMode = false
         var paused = true
@@ -200,6 +201,7 @@ fun main() = application {
             }
             shapes.clear()
             shapeColors.clear()
+            shapeGroups.clear()
 
             interShapeJoints.forEach { joint ->
                 world.destroyJoint(joint)
@@ -207,7 +209,9 @@ fun main() = application {
             interShapeJoints.clear()
 
             // Extract shapes from SVG and create softbodies
+            var shapeIndex = 0
             composition.findShapes().forEach { shapeNode ->
+                shapeIndex++
                 // Get the shape's effective transform (includes all parent transforms)
                 val shapeTransform = shapeNode.effectiveTransform
 
@@ -254,6 +258,9 @@ fun main() = application {
 
                             shapes.add(softBody)
                             shapeColors[softBody] = randomColor()
+
+                            // Group this softbody with others from the same SVG shape
+                            shapeGroups.getOrPut(shapeIndex) { mutableListOf() }.add(softBody)
                         }
                     }
                 }
@@ -449,64 +456,114 @@ fun main() = application {
                 drawer.rectangle(0.0, 0.0, width.toDouble(), height.toDouble())
             }
 
-            // Draw all softbody shapes
-            shapes.forEach { softBody ->
-                val shapeColor = shapeColors[softBody] ?: ColorRGBa.WHITE
+            // Helper to calculate area of a softbody (for determining outer vs hole)
+            fun calculateArea(softBody: SoftBody): Double {
+                if (softBody.bodies.isEmpty()) return 0.0
+                val points = softBody.bodies.map { it.position.toOpenRNDR() }
+                var area = 0.0
+                for (i in points.indices) {
+                    val j = (i + 1) % points.size
+                    area += points[i].x * points[j].y
+                    area -= points[j].x * points[i].y
+                }
+                return kotlin.math.abs(area / 2.0)
+            }
 
-                // Draw filled polygon
-                if (softBody.bodies.isNotEmpty()) {
-                    val polygonPoints = softBody.bodies.map { it.position.toOpenRNDR() }
+            // Draw all softbody shapes, handling groups with holes
+            val renderedSoftBodies = mutableSetOf<SoftBody>()
+
+            shapeGroups.forEach { (_, groupSoftBodies) ->
+                if (groupSoftBodies.isEmpty()) return@forEach
+
+                // Sort by area - largest is outer, smaller are holes
+                val sortedByArea = groupSoftBodies.sortedByDescending { calculateArea(it) }
+                val outerShape = sortedByArea.first()
+                val holes = sortedByArea.drop(1)
+
+                val shapeColor = shapeColors[outerShape] ?: ColorRGBa.WHITE
+
+                // Draw filled shape with holes
+                if (outerShape.bodies.isNotEmpty()) {
                     drawer.fill = shapeColor.opacify(0.6)
                     drawer.stroke = null
-                    drawer.contour(org.openrndr.shape.contour {
-                        moveTo(polygonPoints.first())
-                        polygonPoints.drop(1).forEach { lineTo(it) }
+
+                    // Create outer contour
+                    val outerPoints = outerShape.bodies.map { it.position.toOpenRNDR() }
+                    val outerContour = org.openrndr.shape.contour {
+                        moveTo(outerPoints.first())
+                        outerPoints.drop(1).forEach { lineTo(it) }
                         close()
-                    })
+                    }
+
+                    // Create a shape with holes using multiple contours
+                    // The winding order determines fill: outer clockwise, holes counter-clockwise
+                    if (holes.isNotEmpty()) {
+                        val holeContours = holes.mapNotNull { hole ->
+                            if (hole.bodies.isNotEmpty()) {
+                                val holePoints = hole.bodies.map { it.position.toOpenRNDR() }
+                                org.openrndr.shape.contour {
+                                    moveTo(holePoints.first())
+                                    holePoints.drop(1).forEach { lineTo(it) }
+                                    close()
+                                }.reversed  // Reverse winding for holes
+                            } else null
+                        }
+                        val shapeWithHoles = org.openrndr.shape.Shape(listOf(outerContour) + holeContours)
+                        drawer.shape(shapeWithHoles)
+                    } else {
+                        drawer.contour(outerContour)
+                    }
                 }
 
-                // Draw edges
+                // Draw edges for all shapes in group
                 drawer.fill = null
                 drawer.stroke = ColorRGBa.BLACK
                 drawer.strokeWeight = 2.0
 
-                for (i in softBody.bodies.indices) {
-                    val nextIndex = (i + 1) % softBody.bodies.size
-                    val p1 = softBody.bodies[i].position.toOpenRNDR()
-                    val p2 = softBody.bodies[nextIndex].position.toOpenRNDR()
-                    drawer.lineSegment(p1, p2)
-                }
-
-                // Draw debug info
-                if (debugMode) {
-                    // Draw bodies
-                    drawer.fill = shapeColor
-                    drawer.stroke = shapeColor.shade(0.7)
-                    drawer.strokeWeight = 1.0
-                    softBody.bodies.forEach { body ->
-                        val pos = body.position.toOpenRNDR()
-                        val radius = body.fixtureList?.shape?.radius ?: 0.05f
-                        val visualRadius = radius * PHYSICS_SCALE
-                        drawer.circle(pos, visualRadius)
-                    }
-
-                    // Draw edge joints in cyan
-                    drawer.stroke = ColorRGBa.CYAN
-                    drawer.strokeWeight = 2.0
-                    softBody.edgeJoints.forEach { joint ->
-                        val p1 = joint.bodyA.position.toOpenRNDR()
-                        val p2 = joint.bodyB.position.toOpenRNDR()
+                groupSoftBodies.forEach { softBody ->
+                    for (i in softBody.bodies.indices) {
+                        val nextIndex = (i + 1) % softBody.bodies.size
+                        val p1 = softBody.bodies[i].position.toOpenRNDR()
+                        val p2 = softBody.bodies[nextIndex].position.toOpenRNDR()
                         drawer.lineSegment(p1, p2)
                     }
+                    renderedSoftBodies.add(softBody)
+                }
 
-                    // Draw diagonal joints in magenta (if enabled)
-                    if (enableDiagonalJoints) {
-                        drawer.stroke = ColorRGBa.MAGENTA
-                        drawer.strokeWeight = 1.5
-                        softBody.diagonalJoints.forEach { joint ->
+                // Draw debug info for this group
+                if (debugMode) {
+                    groupSoftBodies.forEach { softBody ->
+                        val softBodyColor = shapeColors[softBody] ?: ColorRGBa.WHITE
+
+                        // Draw bodies
+                        drawer.fill = softBodyColor
+                        drawer.stroke = softBodyColor.shade(0.7)
+                        drawer.strokeWeight = 1.0
+                        softBody.bodies.forEach { body ->
+                            val pos = body.position.toOpenRNDR()
+                            val radius = body.fixtureList?.shape?.radius ?: 0.05f
+                            val visualRadius = radius * PHYSICS_SCALE
+                            drawer.circle(pos, visualRadius)
+                        }
+
+                        // Draw edge joints in cyan
+                        drawer.stroke = ColorRGBa.CYAN
+                        drawer.strokeWeight = 2.0
+                        softBody.edgeJoints.forEach { joint ->
                             val p1 = joint.bodyA.position.toOpenRNDR()
                             val p2 = joint.bodyB.position.toOpenRNDR()
                             drawer.lineSegment(p1, p2)
+                        }
+
+                        // Draw diagonal joints in magenta (if enabled)
+                        if (enableDiagonalJoints) {
+                            drawer.stroke = ColorRGBa.MAGENTA
+                            drawer.strokeWeight = 1.5
+                            softBody.diagonalJoints.forEach { joint ->
+                                val p1 = joint.bodyA.position.toOpenRNDR()
+                                val p2 = joint.bodyB.position.toOpenRNDR()
+                                drawer.lineSegment(p1, p2)
+                            }
                         }
                     }
                 }
