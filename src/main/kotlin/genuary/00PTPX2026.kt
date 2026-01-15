@@ -32,20 +32,31 @@ fun main() = application {
         // Load SVG to get dimensions for window config
         val svgFile = File("data/svg/ptpx-a4.svg")
         val composition = loadSVG(svgFile)
-        val svgBounds = composition.root.bounds
+
+        // Parse viewBox from SVG file if available
+        val viewBoxPattern = Regex("""viewBox=["']([^"']+)["']""")
+        val svgContent = svgFile.readText()
+        val viewBoxMatch = viewBoxPattern.find(svgContent)
+
+        val (svgWidth, svgHeight) = if (viewBoxMatch != null) {
+            val viewBoxValues = viewBoxMatch.groupValues[1].trim().split(Regex("\\s+|,"))
+            Pair(viewBoxValues[2].toDouble(), viewBoxValues[3].toDouble())
+        } else {
+            Pair(composition.root.bounds.width, composition.root.bounds.height)
+        }
 
         // Define maximum display size
         val maxDisplayWidth = 1920.0
         val maxDisplayHeight = 1080.0
 
         // Calculate scale to fit display
-        val scaleX = maxDisplayWidth / svgBounds.width
-        val scaleY = maxDisplayHeight / svgBounds.height
+        val scaleX = maxDisplayWidth / svgWidth
+        val scaleY = maxDisplayHeight / svgHeight
         val displayScale = min(scaleX, scaleY)
 
         // Set window size
-        width = (svgBounds.width * displayScale).toInt()
-        height = (svgBounds.height * displayScale).toInt()
+        width = (svgWidth * displayScale).toInt()
+        height = (svgHeight * displayScale).toInt()
         if (displays.size > 1) display = displays[1]
     }
 
@@ -56,17 +67,41 @@ fun main() = application {
         // Reload SVG (needed for olive hot-reload)
         val svgFile = File("data/svg/ptpx-a4.svg")
         val composition = loadSVG(svgFile)
-        val svgBounds = composition.root.bounds
+
+        // Parse viewBox from SVG file if available
+        val viewBoxPattern = Regex("""viewBox=["']([^"']+)["']""")
+        val svgContent = svgFile.readText()
+        val viewBoxMatch = viewBoxPattern.find(svgContent)
+
+        val (svgLeft, svgTop, svgWidth, svgHeight) = if (viewBoxMatch != null) {
+            val viewBoxValues = viewBoxMatch.groupValues[1].trim().split(Regex("\\s+|,"))
+            listOf(
+                viewBoxValues[0].toDouble(),
+                viewBoxValues[1].toDouble(),
+                viewBoxValues[2].toDouble(),
+                viewBoxValues[3].toDouble()
+            )
+        } else {
+            listOf(
+                composition.root.bounds.corner.x,
+                composition.root.bounds.corner.y,
+                composition.root.bounds.width,
+                composition.root.bounds.height
+            )
+        }
+
+        val svgRight = svgLeft + svgWidth
+        val svgBottom = svgTop + svgHeight
 
         // Calculate scale and offset
         val maxDisplayWidth = 1920.0
         val maxDisplayHeight = 1080.0
-        val scaleX = maxDisplayWidth / svgBounds.width
-        val scaleY = maxDisplayHeight / svgBounds.height
+        val scaleX = maxDisplayWidth / svgWidth
+        val scaleY = maxDisplayHeight / svgHeight
         val scale = min(scaleX, scaleY)
 
-        val offsetX = -svgBounds.corner.x * scale
-        val offsetY = -svgBounds.corner.y * scale
+        val offsetX = -svgLeft * scale
+        val offsetY = -svgTop * scale
 
         // Box2D setup
         val world = World(Vec2(0f, 0f))
@@ -295,6 +330,14 @@ fun main() = application {
             println("Scene initialized: ${shapes.size} shapes, $totalBodies bodies, " +
                     "$totalEdgeJoints edge joints, $diagonalStatus, " +
                     "${interShapeJoints.size} inter-shape joints")
+            val viewBoxStr = if (viewBoxMatch != null) {
+                "viewBox($svgLeft, $svgTop, $svgWidth, $svgHeight)"
+            } else {
+                "no viewBox (using bounds)"
+            }
+            println("SVG: $viewBoxStr -> screen ($svgLeft, $svgTop) to ($svgRight, $svgBottom)")
+            println("Screen mapping: scale=$scale, offset=($offsetX, $offsetY), " +
+                    "window=${width}x${height}")
         }
 
         // Initialize the scene on startup
@@ -331,6 +374,14 @@ fun main() = application {
 
             drawer.clear(ColorRGBa(0.95, 0.96, 0.98, 1.0))
             drawer.fontMap = font
+
+            // Draw SVG bounds rectangle (in debug mode)
+            if (debugMode) {
+                drawer.fill = null
+                drawer.stroke = ColorRGBa.BLUE.opacify(0.5)
+                drawer.strokeWeight = 2.0
+                drawer.rectangle(0.0, 0.0, width.toDouble(), height.toDouble())
+            }
 
             // Draw all softbody shapes
             shapes.forEach { softBody ->
@@ -436,6 +487,9 @@ fun main() = application {
                     drawer.text("Shapes: ${shapes.size}", 20.0, yPos)
                     yPos += 25.0
                     drawer.text("Inter-shape joints: ${interShapeJoints.size}", 20.0, yPos)
+                    yPos += 25.0
+                    drawer.text("SVG: ${svgWidth.toInt()}x${svgHeight.toInt()} " +
+                                "@ scale ${String.format("%.2f", scale)}", 20.0, yPos)
                     yPos += 25.0
                     val legend = if (enableDiagonalJoints) {
                         "Red = Inter-shape | Cyan = Edges | Magenta = Diagonals"
