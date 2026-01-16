@@ -34,7 +34,7 @@ import kotlin.random.Random
 fun main() = application {
     configure {
         // Load SVG to get dimensions for window config
-        val svgFile = File("data/svg/ptpx-a4.svg")
+        val svgFile = File("data/svg/ptpx-2026-a4.svg")
         val composition = loadSVG(svgFile)
 
         // Parse viewBox from SVG file if available
@@ -118,7 +118,7 @@ fun main() = application {
         extend(gui)
 
         // Reload SVG (needed for olive hot-reload)
-        val svgFile = File("data/svg/ptpx-a4.svg")
+        val svgFile = File("data/svg/ptpx-2026-a4.svg")
         val composition = loadSVG(svgFile)
 
         // Parse viewBox from SVG file if available
@@ -561,7 +561,7 @@ fun main() = application {
 
             // Update physics only if not paused
             if (!paused) {
-                world.step(1f/60f, 8, 3)
+                world.step(1f / 60f, 8, 3)
             }
 
             drawer.clear(ColorRGBa.BLACK)
