@@ -147,10 +147,15 @@ fun main() = application {
             }
 
             videoTarget?.let { target ->
-                // Draw video to render target to consume frames
+                // Draw video to render target to consume frames (flipped horizontally)
                 drawer.withTarget(target) {
                     drawer.clear(ColorRGBa.BLACK)
+                    // Flip horizontally for mirror effect
+                    drawer.pushTransforms()
+                    drawer.translate(target.width.toDouble(), 0.0)
+                    drawer.scale(-1.0, 1.0)
                     videoPlayer.draw(drawer)
+                    drawer.popTransforms()
                 }
 
                 val videoFrame = target.colorBuffer(0)
@@ -176,8 +181,8 @@ fun main() = application {
                     1.1,   // Increase scale factor for faster, less sensitive detection
                     5,     // Increase min neighbors to reduce false positives
                     opencv_objdetect.CASCADE_SCALE_IMAGE,
-                    Size(80, 80),  // Increase min size to filter out tiny false detections
-                    Size(800, 800)
+                    Size(80, 120),  // Increase min size to filter out tiny false detections
+                    Size(1000, 1500)
                 )
 
                 // Detect landmarks for each face
