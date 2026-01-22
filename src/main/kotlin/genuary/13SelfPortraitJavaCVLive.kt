@@ -171,11 +171,11 @@ fun main() = application {
                 faceCascade.detectMultiScale(
                     grayMat,
                     faces,
-                    1.05,
-                    2,
+                    1.1,   // Increase scale factor for faster, less sensitive detection
+                    5,     // Increase min neighbors to reduce false positives
                     opencv_objdetect.CASCADE_SCALE_IMAGE,
-                    Size(50, 50),
-                    Size(1200, 1200)
+                    Size(80, 80),  // Increase min size to filter out tiny false detections
+                    Size(800, 800)
                 )
 
                 // Detect landmarks for each face
