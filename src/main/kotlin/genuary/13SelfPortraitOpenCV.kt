@@ -40,7 +40,7 @@ fun main() = application {
 
         println("devices: ${VideoPlayerFFMPEG.listDeviceNames()}")
 
-        val deviceName = "iPhoneForMojo Camera"
+        val deviceName = "USB Camera VID" //"iPhoneForMojo Camera"
         val videoPlayer = VideoPlayerFFMPEG.fromDevice(
             deviceName = deviceName,
             frameRate = 30.0
@@ -96,13 +96,13 @@ fun main() = application {
 
             // Create render target on first frame
             if (videoTarget == null && videoPlayer.width > 0 && videoPlayer.height > 0) {
-                videoTarget = renderTarget(videoPlayer.height, videoPlayer.width) {
+                videoTarget = renderTarget(videoPlayer.width, videoPlayer.height) {
                     colorBuffer()
                 }
 
                 // Calculate crop rectangles once
-                val videoWidth = videoPlayer.height.toDouble()
-                val videoHeight = videoPlayer.width.toDouble()
+                val videoWidth = videoPlayer.width.toDouble()
+                val videoHeight = videoPlayer.height.toDouble()
                 val windowWidth = width.toDouble()
                 val windowHeight = height.toDouble()
 
@@ -147,8 +147,22 @@ fun main() = application {
                     videoPlayer.draw(drawer)
                 }
 
-                // Convert ColorBuffer to OpenCV Mat
-                val mat = colorBufferToMat(target.colorBuffer(0))
+                // Create a cropped ColorBuffer for the visible region only
+                val croppedBuffer = renderTarget(sourceCrop!!.width.toInt(), sourceCrop!!.height.toInt()) {
+                    colorBuffer()
+                }
+
+                // Draw only the cropped region to the temporary buffer
+                drawer.withTarget(croppedBuffer) {
+                    drawer.image(
+                        target.colorBuffer(0),
+                        sourceCrop!!,
+                        Rectangle(0.0, 0.0, sourceCrop!!.width, sourceCrop!!.height)
+                    )
+                }
+
+                // Convert only the cropped ColorBuffer to OpenCV Mat
+                val mat = colorBufferToMat(croppedBuffer.colorBuffer(0))
 
                 // Convert to grayscale for better detection
                 val grayMat = Mat()
@@ -178,11 +192,12 @@ fun main() = application {
                 val faceArray = faces.toArray()
 
                 for (faceRect in faceArray) {
-                    // Map face coordinates to screen space
-                    val faceX = destRect!!.x + (faceRect.x / target.width.toDouble()) * destRect!!.width
-                    val faceY = destRect!!.y + (faceRect.y / target.height.toDouble()) * destRect!!.height
-                    val faceW = (faceRect.width / target.width.toDouble()) * destRect!!.width
-                    val faceH = (faceRect.height / target.height.toDouble()) * destRect!!.height
+                    // Map face coordinates from cropped buffer space to screen space
+                    // Now coordinates are relative to the cropped buffer, which maps 1:1 to destRect
+                    val faceX = destRect!!.x + (faceRect.x / croppedBuffer.width.toDouble()) * destRect!!.width
+                    val faceY = destRect!!.y + (faceRect.y / croppedBuffer.height.toDouble()) * destRect!!.height
+                    val faceW = (faceRect.width / croppedBuffer.width.toDouble()) * destRect!!.width
+                    val faceH = (faceRect.height / croppedBuffer.height.toDouble()) * destRect!!.height
 
                     // Draw face rectangle
                     drawer.stroke = ColorRGBa.GREEN
@@ -203,10 +218,10 @@ fun main() = application {
                     drawer.strokeWeight = 2.0
 
                     for (eyeRect in eyeArray) {
-                        val eyeX = faceX + (eyeRect.x / target.width.toDouble()) * destRect!!.width
-                        val eyeY = faceY + (eyeRect.y / target.height.toDouble()) * destRect!!.height
-                        val eyeW = (eyeRect.width / target.width.toDouble()) * destRect!!.width
-                        val eyeH = (eyeRect.height / target.height.toDouble()) * destRect!!.height
+                        val eyeX = faceX + (eyeRect.x / croppedBuffer.width.toDouble()) * destRect!!.width
+                        val eyeY = faceY + (eyeRect.y / croppedBuffer.height.toDouble()) * destRect!!.height
+                        val eyeW = (eyeRect.width / croppedBuffer.width.toDouble()) * destRect!!.width
+                        val eyeH = (eyeRect.height / croppedBuffer.height.toDouble()) * destRect!!.height
                         drawer.rectangle(eyeX, eyeY, eyeW, eyeH)
 
                         // Draw center point of eye
@@ -228,10 +243,10 @@ fun main() = application {
                     if (noseArray.isNotEmpty()) {
                         // Only draw the first nose detected
                         val noseRect = noseArray[0]
-                        val noseX = faceX + (noseRect.x / target.width.toDouble()) * destRect!!.width
-                        val noseY = faceY + ((noseRect.y + faceRect.height / 3) / target.height.toDouble()) * destRect!!.height
-                        val noseW = (noseRect.width / target.width.toDouble()) * destRect!!.width
-                        val noseH = (noseRect.height / target.height.toDouble()) * destRect!!.height
+                        val noseX = faceX + (noseRect.x / croppedBuffer.width.toDouble()) * destRect!!.width
+                        val noseY = faceY + ((noseRect.y + faceRect.height / 3) / croppedBuffer.height.toDouble()) * destRect!!.height
+                        val noseW = (noseRect.width / croppedBuffer.width.toDouble()) * destRect!!.width
+                        val noseH = (noseRect.height / croppedBuffer.height.toDouble()) * destRect!!.height
                         drawer.rectangle(noseX, noseY, noseW, noseH)
 
                         // Draw center point of nose
@@ -253,10 +268,10 @@ fun main() = application {
                     if (mouthArray.isNotEmpty()) {
                         // Only draw the first mouth detected
                         val mouthRect = mouthArray[0]
-                        val mouthX = faceX + (mouthRect.x / target.width.toDouble()) * destRect!!.width
-                        val mouthY = faceY + ((mouthRect.y + faceRect.height * 2 / 3) / target.height.toDouble()) * destRect!!.height
-                        val mouthW = (mouthRect.width / target.width.toDouble()) * destRect!!.width
-                        val mouthH = (mouthRect.height / target.height.toDouble()) * destRect!!.height
+                        val mouthX = faceX + (mouthRect.x / croppedBuffer.width.toDouble()) * destRect!!.width
+                        val mouthY = faceY + ((mouthRect.y + faceRect.height * 2 / 3) / croppedBuffer.height.toDouble()) * destRect!!.height
+                        val mouthW = (mouthRect.width / croppedBuffer.width.toDouble()) * destRect!!.width
+                        val mouthH = (mouthRect.height / croppedBuffer.height.toDouble()) * destRect!!.height
                         drawer.rectangle(mouthX, mouthY, mouthW, mouthH)
                     }
 
@@ -274,6 +289,8 @@ fun main() = application {
                 drawer.text("Method: Haar Cascades (Classical CV)", 20.0, 50.0)
 
                 // Clean up
+                croppedBuffer.colorBuffer(0).destroy()
+                croppedBuffer.destroy()
                 mat.release()
                 grayMat.release()
                 faces.release()
