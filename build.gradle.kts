@@ -136,8 +136,11 @@ dependencies {
 
     implementation("org.jbox2d:jbox2d-library:2.2.1.1")
 
-    // OpenCV for face detection
+    // OpenCV for face detection (keep for compatibility)
     implementation("org.openpnp:opencv:4.9.0-0")
+
+    // JavaCV for advanced face landmarks (68 points with Facemark)
+    implementation("org.bytedeco:javacv-platform:1.5.12")
 
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.serialization.core)
