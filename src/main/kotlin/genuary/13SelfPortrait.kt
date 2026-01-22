@@ -11,8 +11,8 @@ import kotlin.math.sin
 
 fun main() = application {
     configure {
-        width = 768
-        height = 576
+        width = 841
+        height = 1189
         if (displays.size > 1) display = displays[1]
         // Enable vsync for smoother frame delivery
         vsync = true
@@ -31,8 +31,6 @@ fun main() = application {
 
         extend {
             drawer.clear(ColorRGBa.BLACK)
-
-            // The draw() method handles frame updates internally
             videoPlayer.draw(drawer)
         }
     }
