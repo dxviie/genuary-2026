@@ -174,6 +174,11 @@ fun main() = application {
         data class GradientPalette(val name: String, val colors: List<ColorRGBa>)
 
         val gradientPalettes = listOf(
+            GradientPalette("CMY Spectrum", listOf(
+                ColorRGBa.fromHex(0x00A04F), // full C&Y green
+                ColorRGBa.fromHex(0xF15A22), // M&Y orange
+                ColorRGBa.fromHex(0x953177), // mix purple
+            )),
             GradientPalette("Spectrum 1", listOf(
                 ColorRGBa.fromHex(0xFF4400),  // Deep red-orange (R max, mid G, B=0)
                 ColorRGBa.fromHex(0x4400FF),  // Deep blue-violet (low R, G=0, B max)
@@ -580,13 +585,32 @@ fun main() = application {
                         vec2 p$i = vec2(${point.position.x / width}, ${point.position.y / height});
                         vec3 c$i = vec3(${point.color.r}, ${point.color.g}, ${point.color.b});
                         float d$i = distance(screenPos, p$i);
-                        float w$i = 1.0 / (d$i * d$i + 0.01);
+                        float w$i = 1.0 / (pow(d$i, 3.0) + 0.01); // Steeper falloff for more vibrant colors
                         color += c$i * w$i;
                         totalWeight += w$i;
                         """
                     }.joinToString("\n")}
 
-                    x_fill.rgb = color / totalWeight;
+                    // Blend colors
+                    color = color / totalWeight;
+
+                    // Boost saturation and contrast to preserve intensity
+                    // Convert to HSV-like manipulation
+                    float maxC = max(max(color.r, color.g), color.b);
+                    float minC = min(min(color.r, color.g), color.b);
+                    float chroma = maxC - minC;
+
+                    // Boost the chroma (saturation) by 1.5x
+                    if (chroma > 0.01) {
+                        vec3 newColor = minC + (color - minC) * 1.5;
+                        // Clamp to valid range
+                        color = clamp(newColor, 0.0, 1.0);
+                    }
+
+                    // Apply contrast boost
+                    color = pow(color, vec3(0.9)); // Slight gamma adjustment for more punch
+
+                    x_fill.rgb = color;
                     x_fill.a = 1.0;
                 """.trimIndent()
             }
