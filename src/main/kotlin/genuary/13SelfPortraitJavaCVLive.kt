@@ -12,6 +12,10 @@ import org.openrndr.application
 import org.openrndr.color.ColorRGBa
 import org.openrndr.draw.ColorBuffer
 import org.openrndr.draw.renderTarget
+import org.openrndr.extra.fx.color.ChromaticAberration
+import org.openrndr.extra.fx.distort.Fisheye
+import org.openrndr.extra.fx.distort.VideoGlitch
+import org.openrndr.extra.fx.dither.Crosshatch
 import org.openrndr.ffmpeg.VideoPlayerFFMPEG
 import org.openrndr.shape.Circle
 import org.openrndr.shape.Rectangle
@@ -82,25 +86,53 @@ fun main() = application {
         // Debug mode: 1 = original, 2 = grayscale, 3 = equalized, 4 = custom render
         var debugMode = 1
 
-        keyboard.keyDown.listen {
-            when (it.name) {
-                "1" -> debugMode = 1
-                "2" -> debugMode = 2
-                "3" -> debugMode = 3
-                "4" -> debugMode = 4
-            }
-            println("Debug mode: $debugMode")
+        // Store previous face data for smoothing and persistence
+        var previousFaces = listOf<DetectedFace>()
+        val smoothingFactor = 0.3 // 0 = use only previous, 1 = use only current
+
+        // Post-processing effects
+        val chromaticAberration = ChromaticAberration()
+        val crosshatchDither = Crosshatch()
+        val videoGlitch = VideoGlitch()
+        val fisheye = Fisheye()
+        var useEffects = false
+
+        // Create render target for post-processing
+        val postTarget = renderTarget(width, height) {
+            colorBuffer()
         }
 
-        println("\nDebug controls:")
+        keyboard.keyDown.listen {
+            when (it.name) {
+                "1" -> {
+                    debugMode = 1
+                    println("Debug mode: $debugMode")
+                }
+                "2" -> {
+                    debugMode = 2
+                    println("Debug mode: $debugMode")
+                }
+                "3" -> {
+                    debugMode = 3
+                    println("Debug mode: $debugMode")
+                }
+                "4" -> {
+                    debugMode = 4
+                    println("Debug mode: $debugMode")
+                }
+                "e" -> {
+                    useEffects = !useEffects
+                    println("Effects: ${if (useEffects) "ON" else "OFF"}")
+                }
+            }
+        }
+
+        println("\nControls:")
         println("  - Press 1: Original video")
         println("  - Press 2: Grayscale (before equalization)")
         println("  - Press 3: Histogram equalized (what detector sees)")
         println("  - Press 4: Custom render mode")
-
-        // Store previous face data for smoothing and persistence
-        var previousFaces = listOf<DetectedFace>()
-        val smoothingFactor = 0.3 // 0 = use only previous, 1 = use only current
+        println("  - Press E: Toggle post-processing effects (fisheye + chromatic aberration + video glitch + crosshatch)")
 
         extend {
             // Create render target on first frame (dimensions swapped because video is rotated)
@@ -261,7 +293,11 @@ fun main() = application {
                     else -> videoFrame
                 }
 
-                // Draw based on mode
+                // Render scene to target for post-processing
+                drawer.withTarget(postTarget) {
+                    drawer.clear(ColorRGBa.BLACK)
+
+                    // Draw based on mode
                 if (debugMode == 4) {
                     // Mode 4: Custom render from separate file
                     renderFaceDetection(drawer, smoothedFaces, destRect!!)
@@ -358,6 +394,34 @@ fun main() = application {
                     }
                     }
                 }
+                }
+
+                // Apply post-processing effects and draw to screen
+                drawer.clear(ColorRGBa.BLACK)
+                if (useEffects) {
+                    // Apply fisheye distortion
+                    fisheye.apply(postTarget.colorBuffer(0), postTarget.colorBuffer(0))
+
+                    // Apply video glitch
+                    videoGlitch.time = seconds
+                    videoGlitch.amplitude = 0.05
+                    videoGlitch.vfreq = 0.0
+                    videoGlitch.pfreq = 1.0
+                    videoGlitch.hfreq = 1.0
+                    videoGlitch.poffset = 0.0
+                    videoGlitch.scrollOffset0 = 0.0
+                    videoGlitch.scrollOffset1 = 0.0
+                    videoGlitch.borderHeight = 0.05
+                    videoGlitch.apply(postTarget.colorBuffer(0), postTarget.colorBuffer(0))
+
+                    // Apply chromatic aberration
+                    chromaticAberration.aberrationFactor = 3.0
+                    chromaticAberration.apply(postTarget.colorBuffer(0), postTarget.colorBuffer(0))
+
+                    // Apply crosshatch dither
+//                    crosshatchDither.apply(postTarget.colorBuffer(0), postTarget.colorBuffer(0))
+                }
+                drawer.image(postTarget.colorBuffer(0))
 
                 // Display info
                 drawer.fill = ColorRGBa.WHITE
@@ -371,9 +435,10 @@ fun main() = application {
                 }
 
                 drawer.text("Debug Mode: $modeText (press 1/2/3/4)", 20.0, 30.0)
-                drawer.text("Faces: ${smoothedFaces.size} (raw: ${detectedFaces.size})", 20.0, 50.0)
-                drawer.text("Landmarks per face: 68", 20.0, 70.0)
-                drawer.text("FPS: ${frameCount / seconds}", 20.0, 90.0)
+                drawer.text("Effects: ${if (useEffects) "ON" else "OFF"} (press E)", 20.0, 50.0)
+                drawer.text("Faces: ${smoothedFaces.size} (raw: ${detectedFaces.size})", 20.0, 70.0)
+                drawer.text("Landmarks per face: 68", 20.0, 90.0)
+                drawer.text("FPS: ${frameCount / seconds}", 20.0, 110.0)
 
                 // Clean up
                 mat.release()
