@@ -8,6 +8,21 @@ import org.openrndr.color.ColorRGBa
 import kotlin.random.Random
 
 /**
+ * Eighties-meets-contemporary palette
+ */
+object EightiesPalette {
+    val hotPink = ColorRGBa.fromHex(0xFF6EC7)
+    val electricPink = ColorRGBa.fromHex(0xFF1493)
+    val electricBlue = ColorRGBa.fromHex(0x00B4D8)
+    val synthTeal = ColorRGBa.fromHex(0x40E0D0)
+    val coralOrange = ColorRGBa.fromHex(0xFF6B6B)
+    val sunsetOrange = ColorRGBa.fromHex(0xFF7F50)
+    val synthPurple = ColorRGBa.fromHex(0x9B59B6)
+    val neonViolet = ColorRGBa.fromHex(0xBF40BF)
+    val wireframeWhite = ColorRGBa.fromHex(0xF0EDE8)
+}
+
+/**
  * Data structure for a detected face with landmarks
  */
 data class DetectedFace(
@@ -142,10 +157,17 @@ fun renderJaw(drawer: Drawer, landmarks: List<Circle>) {
 
     val jawLandmarks = landmarks.subList(0, 17)
 
-    drawer.fill = ColorRGBa.GREEN.opacify(0.9)
+    drawer.fill = null
+    drawer.stroke = EightiesPalette.wireframeWhite
+    drawer.strokeWeight = 0.5
+    for (i in 0 until jawLandmarks.size - 1) {
+        drawer.lineSegment(jawLandmarks[i].center, jawLandmarks[i + 1].center)
+    }
+
+    drawer.fill = EightiesPalette.synthTeal.opacify(0.7)
     drawer.stroke = null
     for (landmark in jawLandmarks) {
-        drawer.circle(landmark.center, 3.0)
+        drawer.circle(landmark.center, 1.5)
     }
 }
 
@@ -157,10 +179,17 @@ fun renderRightEyebrow(drawer: Drawer, landmarks: List<Circle>) {
 
     val eyebrowLandmarks = landmarks.subList(17, 22)
 
-    drawer.fill = ColorRGBa.CYAN.opacify(0.9)
+    drawer.fill = null
+    drawer.stroke = EightiesPalette.wireframeWhite
+    drawer.strokeWeight = 0.5
+    for (i in 0 until eyebrowLandmarks.size - 1) {
+        drawer.lineSegment(eyebrowLandmarks[i].center, eyebrowLandmarks[i + 1].center)
+    }
+
+    drawer.fill = EightiesPalette.electricPink.opacify(0.7)
     drawer.stroke = null
     for (landmark in eyebrowLandmarks) {
-        drawer.circle(landmark.center, 3.0)
+        drawer.circle(landmark.center, 1.5)
     }
 }
 
@@ -172,10 +201,17 @@ fun renderLeftEyebrow(drawer: Drawer, landmarks: List<Circle>) {
 
     val eyebrowLandmarks = landmarks.subList(22, 27)
 
-    drawer.fill = ColorRGBa.CYAN.opacify(0.9)
+    drawer.fill = null
+    drawer.stroke = EightiesPalette.wireframeWhite
+    drawer.strokeWeight = 0.5
+    for (i in 0 until eyebrowLandmarks.size - 1) {
+        drawer.lineSegment(eyebrowLandmarks[i].center, eyebrowLandmarks[i + 1].center)
+    }
+
+    drawer.fill = EightiesPalette.hotPink.opacify(0.7)
     drawer.stroke = null
     for (landmark in eyebrowLandmarks) {
-        drawer.circle(landmark.center, 3.0)
+        drawer.circle(landmark.center, 1.5)
     }
 }
 
@@ -187,10 +223,17 @@ fun renderNose(drawer: Drawer, landmarks: List<Circle>) {
 
     val noseLandmarks = landmarks.subList(27, 36)
 
-    drawer.fill = ColorRGBa.YELLOW.opacify(0.9)
+    drawer.fill = null
+    drawer.stroke = EightiesPalette.wireframeWhite
+    drawer.strokeWeight = 0.5
+    for (i in 0 until noseLandmarks.size - 1) {
+        drawer.lineSegment(noseLandmarks[i].center, noseLandmarks[i + 1].center)
+    }
+
+    drawer.fill = EightiesPalette.sunsetOrange.opacify(0.7)
     drawer.stroke = null
     for (landmark in noseLandmarks) {
-        drawer.circle(landmark.center, 3.0)
+        drawer.circle(landmark.center, 1.5)
     }
 }
 
@@ -202,10 +245,17 @@ fun renderRightEye(drawer: Drawer, landmarks: List<Circle>) {
 
     val eyeLandmarks = landmarks.subList(36, 42)
 
-    drawer.fill = ColorRGBa.BLUE.opacify(0.9)
+    drawer.fill = null
+    drawer.stroke = EightiesPalette.wireframeWhite
+    drawer.strokeWeight = 0.5
+    for (i in 0 until eyeLandmarks.size - 1) {
+        drawer.lineSegment(eyeLandmarks[i].center, eyeLandmarks[i + 1].center)
+    }
+
+    drawer.fill = EightiesPalette.electricBlue.opacify(0.7)
     drawer.stroke = null
     for (landmark in eyeLandmarks) {
-        drawer.circle(landmark.center, 3.0)
+        drawer.circle(landmark.center, 1.5)
     }
 }
 
@@ -217,10 +267,17 @@ fun renderLeftEye(drawer: Drawer, landmarks: List<Circle>) {
 
     val eyeLandmarks = landmarks.subList(42, 48)
 
-    drawer.fill = ColorRGBa.BLUE.opacify(0.9)
+    drawer.fill = null
+    drawer.stroke = EightiesPalette.wireframeWhite
+    drawer.strokeWeight = 0.5
+    for (i in 0 until eyeLandmarks.size - 1) {
+        drawer.lineSegment(eyeLandmarks[i].center, eyeLandmarks[i + 1].center)
+    }
+
+    drawer.fill = EightiesPalette.electricBlue.opacify(0.7)
     drawer.stroke = null
     for (landmark in eyeLandmarks) {
-        drawer.circle(landmark.center, 3.0)
+        drawer.circle(landmark.center, 1.5)
     }
 }
 
@@ -232,10 +289,17 @@ fun renderMouth(drawer: Drawer, landmarks: List<Circle>) {
 
     val mouthLandmarks = landmarks.subList(48, 68)
 
-    drawer.fill = ColorRGBa.RED.opacify(0.9)
+    drawer.fill = null
+    drawer.stroke = EightiesPalette.wireframeWhite
+    drawer.strokeWeight = 0.5
+    for (i in 0 until mouthLandmarks.size - 1) {
+        drawer.lineSegment(mouthLandmarks[i].center, mouthLandmarks[i + 1].center)
+    }
+
+    drawer.fill = EightiesPalette.neonViolet.opacify(0.7)
     drawer.stroke = null
     for (landmark in mouthLandmarks) {
-        drawer.circle(landmark.center, 3.0)
+        drawer.circle(landmark.center, 1.5)
     }
 }
 
@@ -262,22 +326,31 @@ fun renderFaceDetection(
         for ((index, landmark) in face.landmarks.withIndex()) {
             // Determine color based on facial feature
             val color = when (index) {
-                in 0..16 -> ColorRGBa.GREEN
-                in 17..21 -> ColorRGBa.CYAN
-                in 22..26 -> ColorRGBa.CYAN
-                in 27..35 -> ColorRGBa.YELLOW
-                in 36..47 -> ColorRGBa.BLUE
-                in 48..67 -> ColorRGBa.RED
-                else -> ColorRGBa.WHITE
+                in 0..16 -> EightiesPalette.synthTeal
+                in 17..21 -> EightiesPalette.electricPink
+                in 22..26 -> EightiesPalette.hotPink
+                in 27..35 -> EightiesPalette.sunsetOrange
+                in 36..47 -> EightiesPalette.electricBlue
+                in 48..67 -> EightiesPalette.neonViolet
+                else -> EightiesPalette.wireframeWhite
             }
 
             // Spawn particle at landmark position (with some randomness to avoid all spawning at once)
-            if (Random.nextDouble() < 0.1) {  // 10% chance per landmark per frame
+            if (Random.nextDouble() < 0.5) {  // 10% chance per landmark per frame
                 ParticleSystem.spawn(landmark.center, color)
             }
+            // Render each facial feature separately
+            renderJaw(drawer, face.landmarks)
+            renderRightEyebrow(drawer, face.landmarks)
+            renderLeftEyebrow(drawer, face.landmarks)
+            renderNose(drawer, face.landmarks)
+            renderRightEye(drawer, face.landmarks)
+            renderLeftEye(drawer, face.landmarks)
+            renderMouth(drawer, face.landmarks)
         }
     }
 
     // Render all particles
     ParticleSystem.render(drawer)
+
 }

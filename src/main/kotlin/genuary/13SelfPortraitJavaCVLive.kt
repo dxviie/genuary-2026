@@ -408,7 +408,7 @@ fun main() = application {
                 drawer.clear(ColorRGBa.BLACK)
                 if (useEffects) {
                     // Apply fisheye distortion
-//                    fisheye.apply(postTarget.colorBuffer(0), postTarget.colorBuffer(0))
+//
 
                     // Apply video glitch
                     videoGlitch.time = seconds
@@ -426,6 +426,7 @@ fun main() = application {
                     chromaticAberration.aberrationFactor = 3.0
                     chromaticAberration.apply(postTarget.colorBuffer(0), postTarget.colorBuffer(0))
 
+//                    fisheye.apply(postTarget.colorBuffer(0), postTarget.colorBuffer(0))
                     // Apply crosshatch dither
 //                    crosshatchDither.apply(postTarget.colorBuffer(0), postTarget.colorBuffer(0))
                 }
