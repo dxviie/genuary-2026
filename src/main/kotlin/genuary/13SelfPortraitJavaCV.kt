@@ -110,10 +110,10 @@ fun main() = application {
         faceCascade.detectMultiScale(
             grayMat,
             faces,
-            1.1,
-            3,
-            opencv_objdetect.CASCADE_SCALE_IMAGE,
-            Size(30, 30),
+            1.05,  // Lower scale factor for more thorough detection
+            2,     // Lower min neighbors for more permissive detection
+            opencv_objdetect.CASCADE_FIND_BIGGEST_OBJECT,
+            Size(50, 50),  // Larger min size for closeup faces
             Size()
         )
 
