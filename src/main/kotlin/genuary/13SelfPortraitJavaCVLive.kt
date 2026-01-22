@@ -79,7 +79,7 @@ fun main() = application {
         var sourceCrop: Rectangle? = null
         var destRect: Rectangle? = null
 
-        // Debug mode: 1 = original, 2 = grayscale, 3 = equalized
+        // Debug mode: 1 = original, 2 = grayscale, 3 = equalized, 4 = custom render
         var debugMode = 1
 
         keyboard.keyDown.listen {
@@ -87,6 +87,7 @@ fun main() = application {
                 "1" -> debugMode = 1
                 "2" -> debugMode = 2
                 "3" -> debugMode = 3
+                "4" -> debugMode = 4
             }
             println("Debug mode: $debugMode")
         }
@@ -95,6 +96,7 @@ fun main() = application {
         println("  - Press 1: Original video")
         println("  - Press 2: Grayscale (before equalization)")
         println("  - Press 3: Histogram equalized (what detector sees)")
+        println("  - Press 4: Custom render mode")
 
         extend {
             drawer.clear(ColorRGBa.BLACK)
@@ -183,12 +185,7 @@ fun main() = application {
                 val success = facemark.fit(grayMat, faces, landmarks)
 
                 // Store detected faces and landmarks
-                data class FaceLandmarks(
-                    val faceRect: Rectangle,
-                    val landmarks: List<Circle>
-                )
-
-                val detectedFaces = mutableListOf<FaceLandmarks>()
+                val detectedFaces = mutableListOf<DetectedFace>()
 
                 for (i in 0 until faces.size()) {
                     val faceRect = faces.get(i)
@@ -228,7 +225,7 @@ fun main() = application {
                         }
                     }
 
-                    detectedFaces.add(FaceLandmarks(screenFaceRect, landmarkPoints))
+                    detectedFaces.add(DetectedFace(screenFaceRect, landmarkPoints))
                 }
 
                 // Prepare debug images if needed
@@ -238,15 +235,21 @@ fun main() = application {
                     else -> videoFrame
                 }
 
-                // Draw video with face detection
-                drawer.image(
-                    currentImage,
-                    sourceCrop!!,
-                    destRect!!
-                )
+                // Draw based on mode
+                if (debugMode == 4) {
+                    // Mode 4: Custom render from separate file
+                    drawer.clear(ColorRGBa.BLACK)
+                    renderFaceDetection(drawer, detectedFaces, destRect!!)
+                } else {
+                    // Modes 1-3: Draw video with standard face detection overlay
+                    drawer.image(
+                        currentImage,
+                        sourceCrop!!,
+                        destRect!!
+                    )
 
-                // Draw all detected face features
-                for (face in detectedFaces) {
+                    // Draw all detected face features
+                    for (face in detectedFaces) {
                     // Draw face rectangle
                     drawer.stroke = ColorRGBa.GREEN
                     drawer.strokeWeight = 2.0
@@ -328,6 +331,7 @@ fun main() = application {
                             drawer.lineSegment(face.landmarks[67].center, face.landmarks[60].center)
                         }
                     }
+                    }
                 }
 
                 // Display info
@@ -337,10 +341,11 @@ fun main() = application {
                 val modeText = when (debugMode) {
                     2 -> "Grayscale (pre-equalization)"
                     3 -> "Histogram Equalized (detection input)"
+                    4 -> "Custom Render"
                     else -> "Original"
                 }
 
-                drawer.text("Debug Mode: $modeText (press 1/2/3)", 20.0, 30.0)
+                drawer.text("Debug Mode: $modeText (press 1/2/3/4)", 20.0, 30.0)
                 drawer.text("Faces detected: ${detectedFaces.size}", 20.0, 50.0)
                 drawer.text("Landmarks per face: 68", 20.0, 70.0)
                 drawer.text("FPS: ${frameCount / seconds}", 20.0, 90.0)
