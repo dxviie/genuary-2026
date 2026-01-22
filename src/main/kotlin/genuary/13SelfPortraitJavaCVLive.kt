@@ -103,8 +103,6 @@ fun main() = application {
         val smoothingFactor = 0.3 // 0 = use only previous, 1 = use only current
 
         extend {
-            drawer.clear(ColorRGBa.BLACK)
-
             // Create render target on first frame (dimensions swapped because video is rotated)
             if (videoTarget == null && videoPlayer.width > 0 && videoPlayer.height > 0) {
                 videoTarget = renderTarget(videoPlayer.height, videoPlayer.width) {
@@ -266,7 +264,6 @@ fun main() = application {
                 // Draw based on mode
                 if (debugMode == 4) {
                     // Mode 4: Custom render from separate file
-                    drawer.clear(ColorRGBa.BLACK)
                     renderFaceDetection(drawer, smoothedFaces, destRect!!)
                 } else {
                     // Modes 1-3: Draw video with standard face detection overlay

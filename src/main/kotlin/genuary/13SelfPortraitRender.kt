@@ -52,6 +52,111 @@ fun interpolateFaces(from: List<DetectedFace>, to: List<DetectedFace>, factor: D
 }
 
 /**
+ * Render the jaw outline (landmarks 0-16)
+ */
+fun renderJaw(drawer: Drawer, landmarks: List<Circle>) {
+    if (landmarks.size < 17) return
+
+    val jawLandmarks = landmarks.subList(0, 17)
+
+    drawer.fill = ColorRGBa.GREEN.opacify(0.9)
+    drawer.stroke = null
+    for (landmark in jawLandmarks) {
+        drawer.circle(landmark.center, 3.0)
+    }
+}
+
+/**
+ * Render the right eyebrow (landmarks 17-21)
+ */
+fun renderRightEyebrow(drawer: Drawer, landmarks: List<Circle>) {
+    if (landmarks.size < 22) return
+
+    val eyebrowLandmarks = landmarks.subList(17, 22)
+
+    drawer.fill = ColorRGBa.CYAN.opacify(0.9)
+    drawer.stroke = null
+    for (landmark in eyebrowLandmarks) {
+        drawer.circle(landmark.center, 3.0)
+    }
+}
+
+/**
+ * Render the left eyebrow (landmarks 22-26)
+ */
+fun renderLeftEyebrow(drawer: Drawer, landmarks: List<Circle>) {
+    if (landmarks.size < 27) return
+
+    val eyebrowLandmarks = landmarks.subList(22, 27)
+
+    drawer.fill = ColorRGBa.CYAN.opacify(0.9)
+    drawer.stroke = null
+    for (landmark in eyebrowLandmarks) {
+        drawer.circle(landmark.center, 3.0)
+    }
+}
+
+/**
+ * Render the nose (landmarks 27-35)
+ */
+fun renderNose(drawer: Drawer, landmarks: List<Circle>) {
+    if (landmarks.size < 36) return
+
+    val noseLandmarks = landmarks.subList(27, 36)
+
+    drawer.fill = ColorRGBa.YELLOW.opacify(0.9)
+    drawer.stroke = null
+    for (landmark in noseLandmarks) {
+        drawer.circle(landmark.center, 3.0)
+    }
+}
+
+/**
+ * Render the right eye (landmarks 36-41)
+ */
+fun renderRightEye(drawer: Drawer, landmarks: List<Circle>) {
+    if (landmarks.size < 42) return
+
+    val eyeLandmarks = landmarks.subList(36, 42)
+
+    drawer.fill = ColorRGBa.BLUE.opacify(0.9)
+    drawer.stroke = null
+    for (landmark in eyeLandmarks) {
+        drawer.circle(landmark.center, 3.0)
+    }
+}
+
+/**
+ * Render the left eye (landmarks 42-47)
+ */
+fun renderLeftEye(drawer: Drawer, landmarks: List<Circle>) {
+    if (landmarks.size < 48) return
+
+    val eyeLandmarks = landmarks.subList(42, 48)
+
+    drawer.fill = ColorRGBa.BLUE.opacify(0.9)
+    drawer.stroke = null
+    for (landmark in eyeLandmarks) {
+        drawer.circle(landmark.center, 3.0)
+    }
+}
+
+/**
+ * Render the mouth (landmarks 48-67)
+ */
+fun renderMouth(drawer: Drawer, landmarks: List<Circle>) {
+    if (landmarks.size < 68) return
+
+    val mouthLandmarks = landmarks.subList(48, 68)
+
+    drawer.fill = ColorRGBa.RED.opacify(0.9)
+    drawer.stroke = null
+    for (landmark in mouthLandmarks) {
+        drawer.circle(landmark.center, 3.0)
+    }
+}
+
+/**
  * Custom render mode for face detection visualization
  *
  * This function receives all face detection data and can render it however it wants.
@@ -65,9 +170,6 @@ fun renderFaceDetection(
     faces: List<DetectedFace>,
     displayRect: Rectangle
 ) {
-    // Example: Draw a creative visualization of the detected faces
-    // You can customize this however you want!
-
     for (face in faces) {
         // Draw face outline with a different style
         drawer.stroke = ColorRGBa.MAGENTA
@@ -75,19 +177,13 @@ fun renderFaceDetection(
         drawer.fill = ColorRGBa.MAGENTA.opacify(0.1)
         drawer.rectangle(face.faceRect)
 
-        // Draw landmarks as larger circles
-        drawer.stroke = null
-        for ((index, landmark) in face.landmarks.withIndex()) {
-            drawer.fill = when (index) {
-                in 0..16 -> ColorRGBa.GREEN.opacify(0.9)
-                in 17..21 -> ColorRGBa.CYAN.opacify(0.9)
-                in 22..26 -> ColorRGBa.CYAN.opacify(0.9)
-                in 27..35 -> ColorRGBa.YELLOW.opacify(0.9)
-                in 36..47 -> ColorRGBa.BLUE.opacify(0.9)
-                in 48..67 -> ColorRGBa.RED.opacify(0.9)
-                else -> ColorRGBa.WHITE.opacify(0.9)
-            }
-            drawer.circle(landmark.center, 3.0)
-        }
+        // Render each facial feature separately
+        renderJaw(drawer, face.landmarks)
+        renderRightEyebrow(drawer, face.landmarks)
+        renderLeftEyebrow(drawer, face.landmarks)
+        renderNose(drawer, face.landmarks)
+        renderRightEye(drawer, face.landmarks)
+        renderLeftEye(drawer, face.landmarks)
+        renderMouth(drawer, face.landmarks)
     }
 }
