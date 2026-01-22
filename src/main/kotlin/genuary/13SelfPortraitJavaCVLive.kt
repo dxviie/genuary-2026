@@ -134,7 +134,15 @@ fun main() = application {
         println("  - Press 4: Custom render mode")
         println("  - Press E: Toggle post-processing effects (fisheye + chromatic aberration + video glitch + crosshatch)")
 
+        // Track time for delta calculation
+        var lastTime = 0.0
+
         extend {
+            // Calculate delta time
+            val currentTime = seconds
+            val deltaTime = if (lastTime == 0.0) 1.0 / 60.0 else currentTime - lastTime
+            lastTime = currentTime
+
             // Create render target on first frame (dimensions swapped because video is rotated)
             if (videoTarget == null && videoPlayer.width > 0 && videoPlayer.height > 0) {
                 videoTarget = renderTarget(videoPlayer.height, videoPlayer.width) {
@@ -300,7 +308,7 @@ fun main() = application {
                     // Draw based on mode
                 if (debugMode == 4) {
                     // Mode 4: Custom render from separate file
-                    renderFaceDetection(drawer, smoothedFaces, destRect!!)
+                    renderFaceDetection(drawer, smoothedFaces, destRect!!, deltaTime)
                 } else {
                     // Modes 1-3: Draw video with standard face detection overlay
                     drawer.image(
@@ -400,14 +408,14 @@ fun main() = application {
                 drawer.clear(ColorRGBa.BLACK)
                 if (useEffects) {
                     // Apply fisheye distortion
-                    fisheye.apply(postTarget.colorBuffer(0), postTarget.colorBuffer(0))
+//                    fisheye.apply(postTarget.colorBuffer(0), postTarget.colorBuffer(0))
 
                     // Apply video glitch
                     videoGlitch.time = seconds
                     videoGlitch.amplitude = 0.05
-                    videoGlitch.vfreq = 0.0
-                    videoGlitch.pfreq = 1.0
-                    videoGlitch.hfreq = 1.0
+                    videoGlitch.vfreq = 1.0
+                    videoGlitch.pfreq = 10.0
+                    videoGlitch.hfreq = 3.0
                     videoGlitch.poffset = 0.0
                     videoGlitch.scrollOffset0 = 0.0
                     videoGlitch.scrollOffset1 = 0.0

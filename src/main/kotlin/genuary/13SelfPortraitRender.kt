@@ -1,9 +1,11 @@
 package genuary
 
 import org.openrndr.draw.Drawer
+import org.openrndr.math.Vector2
 import org.openrndr.shape.Circle
 import org.openrndr.shape.Rectangle
 import org.openrndr.color.ColorRGBa
+import kotlin.random.Random
 
 /**
  * Data structure for a detected face with landmarks
@@ -12,6 +14,87 @@ data class DetectedFace(
     val faceRect: Rectangle,
     val landmarks: List<Circle>
 )
+
+/**
+ * Particle that spawns from a landmark and moves around
+ */
+data class Particle(
+    var position: Vector2,
+    var velocity: Vector2,
+    var age: Double = 0.0,
+    val lifetime: Double,
+    val color: ColorRGBa,
+    val radius: Double = 3.0
+) {
+    val isAlive: Boolean
+        get() = age < lifetime
+
+    val opacity: Double
+        get() = 1.0 - (age / lifetime)
+
+    fun update(deltaTime: Double) {
+        age += deltaTime
+        position += velocity * deltaTime
+
+        // Small chance to adjust direction (10% per second)
+        if (Random.nextDouble() < 0.1 * deltaTime) {
+            val angle = Random.nextDouble(-0.5, 0.5) // Small angle change in radians
+            val speed = velocity.length
+            val currentAngle = kotlin.math.atan2(velocity.y, velocity.x)
+            val newAngle = currentAngle + angle
+            velocity = Vector2(
+                kotlin.math.cos(newAngle) * speed,
+                kotlin.math.sin(newAngle) * speed
+            )
+        }
+    }
+}
+
+/**
+ * Particle system that manages all particles
+ */
+object ParticleSystem {
+    private val particles = mutableListOf<Particle>()
+
+    fun spawn(position: Vector2, color: ColorRGBa) {
+        val velocity = Vector2(
+            Random.nextDouble(-20.0, 20.0),
+            Random.nextDouble(-20.0, 20.0)
+        )
+        val lifetime = Random.nextDouble(2.0, 5.0)
+
+        particles.add(
+            Particle(
+                position = position,
+                velocity = velocity,
+                lifetime = lifetime,
+                color = color
+            )
+        )
+    }
+
+    fun update(deltaTime: Double) {
+        // Update all particles
+        particles.forEach { it.update(deltaTime) }
+
+        // Remove dead particles
+        particles.removeAll { !it.isAlive }
+    }
+
+    fun render(drawer: Drawer) {
+        drawer.circles {
+            for (particle in particles) {
+                fill = particle.color.opacify(particle.opacity)
+                stroke = null
+                circle(particle.position, particle.radius)
+            }
+        }
+    }
+
+    fun clear() {
+        particles.clear()
+    }
+}
 
 /**
  * Interpolate between two detected faces for smoothing
@@ -168,22 +251,33 @@ fun renderMouth(drawer: Drawer, landmarks: List<Circle>) {
 fun renderFaceDetection(
     drawer: Drawer,
     faces: List<DetectedFace>,
-    displayRect: Rectangle
+    displayRect: Rectangle,
+    deltaTime: Double = 1.0 / 60.0
 ) {
-    for (face in faces) {
-        // Draw face outline with a different style
-        drawer.stroke = ColorRGBa.MAGENTA
-        drawer.strokeWeight = 3.0
-        drawer.fill = ColorRGBa.MAGENTA.opacify(0.1)
-        drawer.rectangle(face.faceRect)
+    // Update particle system
+    ParticleSystem.update(deltaTime)
 
-        // Render each facial feature separately
-        renderJaw(drawer, face.landmarks)
-        renderRightEyebrow(drawer, face.landmarks)
-        renderLeftEyebrow(drawer, face.landmarks)
-        renderNose(drawer, face.landmarks)
-        renderRightEye(drawer, face.landmarks)
-        renderLeftEye(drawer, face.landmarks)
-        renderMouth(drawer, face.landmarks)
+    // Spawn new particles at landmark positions
+    for (face in faces) {
+        for ((index, landmark) in face.landmarks.withIndex()) {
+            // Determine color based on facial feature
+            val color = when (index) {
+                in 0..16 -> ColorRGBa.GREEN
+                in 17..21 -> ColorRGBa.CYAN
+                in 22..26 -> ColorRGBa.CYAN
+                in 27..35 -> ColorRGBa.YELLOW
+                in 36..47 -> ColorRGBa.BLUE
+                in 48..67 -> ColorRGBa.RED
+                else -> ColorRGBa.WHITE
+            }
+
+            // Spawn particle at landmark position (with some randomness to avoid all spawning at once)
+            if (Random.nextDouble() < 0.1) {  // 10% chance per landmark per frame
+                ParticleSystem.spawn(landmark.center, color)
+            }
+        }
     }
+
+    // Render all particles
+    ParticleSystem.render(drawer)
 }
