@@ -389,7 +389,7 @@ private fun colorBufferToJavaCVMat(colorBuffer: ColorBuffer): Mat {
 
 /**
  * Converts a JavaCV Mat (grayscale or RGB) to an OPENRNDR ColorBuffer
- * Flips Y axis since OpenCV uses top-left origin, OPENRNDR uses bottom-left
+ * Note: The Mat is already in the correct orientation (flipped during input conversion)
  */
 private fun javaCVMatToColorBuffer(mat: Mat, width: Int, height: Int): ColorBuffer {
     val colorBuffer = org.openrndr.draw.colorBuffer(width, height)
@@ -400,9 +400,6 @@ private fun javaCVMatToColorBuffer(mat: Mat, width: Int, height: Int): ColorBuff
 
     for (y in 0 until height) {
         for (x in 0 until width) {
-            // Flip Y: OpenCV row 0 should appear at bottom in OPENRNDR
-            val flippedY = height - 1 - y
-
             val value = if (channels == 1) {
                 // Grayscale
                 val gray = (indexer.get(y.toLong(), x.toLong(), 0) and 0xFF) / 255.0
@@ -414,7 +411,7 @@ private fun javaCVMatToColorBuffer(mat: Mat, width: Int, height: Int): ColorBuff
                 val b = (indexer.get(y.toLong(), x.toLong(), 2) and 0xFF) / 255.0
                 ColorRGBa(r, g, b, 1.0)
             }
-            shadow[x, flippedY] = value
+            shadow[x, y] = value
         }
     }
 
