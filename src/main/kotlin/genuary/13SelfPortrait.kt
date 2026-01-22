@@ -89,7 +89,6 @@ fun main() = application {
                     Rectangle(sourceX, sourceY, sourceW, sourceH),  // crop from video
                     Rectangle(0.0, 0.0, windowWidth, windowHeight)  // fill entire window
                 )
-//                drawer.image(target.colorBuffer(0))
             }
         }
     }
