@@ -7,8 +7,6 @@ import org.bytedeco.opencv.global.opencv_objdetect
 import org.bytedeco.opencv.opencv_core.*
 import org.bytedeco.opencv.opencv_face.Facemark
 import org.bytedeco.opencv.opencv_objdetect.CascadeClassifier
-import org.bytedeco.javacpp.FloatPointer
-import org.bytedeco.javacpp.BytePointer
 import org.bytedeco.javacpp.indexer.UByteIndexer
 import org.openrndr.application
 import org.openrndr.color.ColorRGBa
@@ -18,7 +16,6 @@ import org.openrndr.shape.Circle
 import org.openrndr.shape.Rectangle
 import java.io.File
 import java.net.URL
-import java.nio.ByteBuffer
 
 /**
  * JavaCV-based face detection with 68-point facial landmarks - Static Image Version
@@ -97,7 +94,9 @@ fun main() = application {
 
         // Convert OPENRNDR ColorBuffer to JavaCV Mat
         println("Converting image to OpenCV format...")
+        println("Source image: ${sourceImage.width}x${sourceImage.height}, format: ${sourceImage.format}, type: ${sourceImage.type}")
         val mat = colorBufferToJavaCVMat(sourceImage)
+        println("Mat created: ${mat.cols()}x${mat.rows()}, channels: ${mat.channels()}")
 
         // Convert to grayscale
         val grayMat = Mat()
@@ -365,14 +364,14 @@ private fun downloadCascade(dataDir: File, filename: String, url: String): File 
 private fun colorBufferToJavaCVMat(colorBuffer: ColorBuffer): Mat {
     val width = colorBuffer.width
     val height = colorBuffer.height
-    val buffer = ByteBuffer.allocateDirect(width * height * 4)
+    val buffer = java.nio.ByteBuffer.allocateDirect(width * height * 4)
 
     // Read pixels from ColorBuffer
     colorBuffer.read(buffer)
     buffer.rewind()
 
     // Create Mat (RGBA format) with data from ByteBuffer
-    val bytePointer = BytePointer(buffer)
+    val bytePointer = org.bytedeco.javacpp.BytePointer(buffer)
     val mat = Mat(height, width, opencv_core.CV_8UC4, bytePointer, (width * 4).toLong())
 
     // Convert RGBA to RGB
