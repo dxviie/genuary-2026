@@ -102,7 +102,16 @@ fun main() = application {
         // Convert to grayscale
         val grayMat = Mat()
         opencv_imgproc.cvtColor(mat, grayMat, opencv_imgproc.COLOR_RGB2GRAY)
+
+        // Store grayscale before histogram equalization for debugging
+        val grayMatBeforeEq = Mat()
+        grayMat.copyTo(grayMatBeforeEq)
+
         opencv_imgproc.equalizeHist(grayMat, grayMat)
+
+        // Convert processed mats to ColorBuffers for visualization
+        val grayImage = javaCVMatToColorBuffer(grayMatBeforeEq, sourceImage.width, sourceImage.height)
+        val equalizedImage = javaCVMatToColorBuffer(grayMat, sourceImage.width, sourceImage.height)
 
         // Detect faces
         println("Detecting faces...")
@@ -171,9 +180,10 @@ fun main() = application {
             detectedFaces.add(FaceLandmarks(screenFaceRect, landmarkPoints))
         }
 
-        // Clean up
+        // Clean up intermediate mats
         mat.release()
         grayMat.release()
+        grayMatBeforeEq.release()
         faces.deallocate()
         landmarks.deallocate()
         faceCascade.close()
@@ -189,12 +199,33 @@ fun main() = application {
         println("  - Left eye: 42-47 (6 points)")
         println("  - Outer mouth: 48-59 (12 points)")
         println("  - Inner mouth: 60-67 (8 points)")
+        println("\nDebug controls:")
+        println("  - Press 1: Original image")
+        println("  - Press 2: Grayscale (before equalization)")
+        println("  - Press 3: Histogram equalized (what detector sees)")
+
+        // Debug mode: 1 = original, 2 = grayscale, 3 = equalized
+        var debugMode = 1
+
+        keyboard.keyDown.listen {
+            when (it.name) {
+                "1" -> debugMode = 1
+                "2" -> debugMode = 2
+                "3" -> debugMode = 3
+            }
+            println("Debug mode: $debugMode")
+        }
 
         extend {
             drawer.clear(ColorRGBa.BLACK)
 
-            // Draw the image
-            drawer.image(sourceImage, sourceImage.bounds, displayRect)
+            // Draw the image based on debug mode
+            val currentImage = when (debugMode) {
+                2 -> grayImage
+                3 -> equalizedImage
+                else -> sourceImage
+            }
+            drawer.image(currentImage, currentImage.bounds, displayRect)
 
             // Draw all detected face features
             for (face in detectedFaces) {
@@ -292,10 +323,19 @@ fun main() = application {
             // Display info
             drawer.fill = ColorRGBa.WHITE
             drawer.stroke = null
-            drawer.text("Faces detected: ${detectedFaces.size}", 20.0, 30.0)
-            drawer.text("Landmarks per face: 68", 20.0, 50.0)
-            drawer.text("Method: JavaCV Facemark LBF", 20.0, 70.0)
-            drawer.text("Image: data/images/face-04.jpg", 20.0, 90.0)
+
+            val modeText = when (debugMode) {
+                2 -> "Grayscale (pre-equalization)"
+                3 -> "Histogram Equalized (detection input)"
+                else -> "Original"
+            }
+
+            drawer.text("Debug Mode: $modeText (press 1/2/3)", 20.0, 30.0)
+            drawer.text("Faces detected: ${detectedFaces.size}", 20.0, 50.0)
+            drawer.text("Detection params:", 20.0, 70.0)
+            drawer.text("  Scale: 1.05, MinNeighbors: 2", 20.0, 90.0)
+            drawer.text("  MinSize: 50x50, MaxSize: 1200x1200", 20.0, 110.0)
+            drawer.text("Image: ${sourceImage.width}x${sourceImage.height}", 20.0, 130.0)
         }
     }
 }
@@ -340,4 +380,37 @@ private fun colorBufferToJavaCVMat(colorBuffer: ColorBuffer): Mat {
     opencv_imgproc.cvtColor(mat, rgbMat, opencv_imgproc.COLOR_RGBA2RGB)
 
     return rgbMat
+}
+
+/**
+ * Converts a JavaCV Mat (grayscale or RGB) to an OPENRNDR ColorBuffer
+ */
+private fun javaCVMatToColorBuffer(mat: Mat, width: Int, height: Int): ColorBuffer {
+    val colorBuffer = org.openrndr.draw.colorBuffer(width, height)
+    val shadow = colorBuffer.shadow
+
+    val indexer = mat.createIndexer<UByteIndexer>()
+    val channels = mat.channels()
+
+    for (y in 0 until height) {
+        for (x in 0 until width) {
+            val value = if (channels == 1) {
+                // Grayscale
+                val gray = (indexer.get(y.toLong(), x.toLong(), 0) and 0xFF) / 255.0
+                ColorRGBa(gray, gray, gray, 1.0)
+            } else {
+                // RGB
+                val r = (indexer.get(y.toLong(), x.toLong(), 0) and 0xFF) / 255.0
+                val g = (indexer.get(y.toLong(), x.toLong(), 1) and 0xFF) / 255.0
+                val b = (indexer.get(y.toLong(), x.toLong(), 2) and 0xFF) / 255.0
+                ColorRGBa(r, g, b, 1.0)
+            }
+            shadow[x, y] = value
+        }
+    }
+
+    indexer.release()
+    shadow.upload()
+
+    return colorBuffer
 }
