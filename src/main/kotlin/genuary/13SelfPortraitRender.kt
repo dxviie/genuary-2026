@@ -14,6 +14,44 @@ data class DetectedFace(
 )
 
 /**
+ * Interpolate between two detected faces for smoothing
+ */
+fun interpolateFace(from: DetectedFace, to: DetectedFace, factor: Double): DetectedFace {
+    // Interpolate face rectangle
+    val rect = Rectangle(
+        from.faceRect.x + (to.faceRect.x - from.faceRect.x) * factor,
+        from.faceRect.y + (to.faceRect.y - from.faceRect.y) * factor,
+        from.faceRect.width + (to.faceRect.width - from.faceRect.width) * factor,
+        from.faceRect.height + (to.faceRect.height - from.faceRect.height) * factor
+    )
+
+    // Interpolate landmarks (assuming same number of landmarks)
+    val landmarks = from.landmarks.zip(to.landmarks).map { (fromLandmark, toLandmark) ->
+        Circle(
+            fromLandmark.center.x + (toLandmark.center.x - fromLandmark.center.x) * factor,
+            fromLandmark.center.y + (toLandmark.center.y - fromLandmark.center.y) * factor,
+            fromLandmark.radius
+        )
+    }
+
+    return DetectedFace(rect, landmarks)
+}
+
+/**
+ * Interpolate between two lists of faces
+ */
+fun interpolateFaces(from: List<DetectedFace>, to: List<DetectedFace>, factor: Double): List<DetectedFace> {
+    // Simple approach: interpolate matching indices, use 'to' for extra faces
+    val minSize = minOf(from.size, to.size)
+    val interpolated = (0 until minSize).map { i ->
+        interpolateFace(from[i], to[i], factor)
+    }
+
+    // Add any extra faces from 'to' (new faces that appeared)
+    return interpolated + to.drop(minSize)
+}
+
+/**
  * Custom render mode for face detection visualization
  *
  * This function receives all face detection data and can render it however it wants.

@@ -98,6 +98,10 @@ fun main() = application {
         println("  - Press 3: Histogram equalized (what detector sees)")
         println("  - Press 4: Custom render mode")
 
+        // Store previous face data for smoothing and persistence
+        var previousFaces = listOf<DetectedFace>()
+        val smoothingFactor = 0.3 // 0 = use only previous, 1 = use only current
+
         extend {
             drawer.clear(ColorRGBa.BLACK)
 
@@ -179,7 +183,7 @@ fun main() = application {
                     grayMat,
                     faces,
                     1.1,   // Increase scale factor for faster, less sensitive detection
-                    5,     // Increase min neighbors to reduce false positives
+                    10,     // Increase min neighbors to reduce false positives
                     opencv_objdetect.CASCADE_SCALE_IMAGE,
                     Size(80, 120),  // Increase min size to filter out tiny false detections
                     Size(1000, 1500)
@@ -233,6 +237,25 @@ fun main() = application {
                     detectedFaces.add(DetectedFace(screenFaceRect, landmarkPoints))
                 }
 
+                // Apply smoothing and persistence
+                val smoothedFaces = when {
+                    detectedFaces.isEmpty() && previousFaces.isNotEmpty() -> {
+                        // No faces detected, use previous data
+                        previousFaces
+                    }
+                    detectedFaces.isNotEmpty() && previousFaces.isNotEmpty() -> {
+                        // Interpolate between previous and current for smoothing
+                        interpolateFaces(previousFaces, detectedFaces, smoothingFactor)
+                    }
+                    else -> {
+                        // First detection or no previous data
+                        detectedFaces
+                    }
+                }
+
+                // Store for next frame
+                previousFaces = smoothedFaces
+
                 // Prepare debug images if needed
                 val currentImage = when (debugMode) {
                     2 -> javaCVMatToColorBuffer(grayMatBeforeEq, videoFrame.width, videoFrame.height)
@@ -244,7 +267,7 @@ fun main() = application {
                 if (debugMode == 4) {
                     // Mode 4: Custom render from separate file
                     drawer.clear(ColorRGBa.BLACK)
-                    renderFaceDetection(drawer, detectedFaces, destRect!!)
+                    renderFaceDetection(drawer, smoothedFaces, destRect!!)
                 } else {
                     // Modes 1-3: Draw video with standard face detection overlay
                     drawer.image(
@@ -254,7 +277,7 @@ fun main() = application {
                     )
 
                     // Draw all detected face features
-                    for (face in detectedFaces) {
+                    for (face in smoothedFaces) {
                     // Draw face rectangle
                     drawer.stroke = ColorRGBa.GREEN
                     drawer.strokeWeight = 2.0
@@ -351,7 +374,7 @@ fun main() = application {
                 }
 
                 drawer.text("Debug Mode: $modeText (press 1/2/3/4)", 20.0, 30.0)
-                drawer.text("Faces detected: ${detectedFaces.size}", 20.0, 50.0)
+                drawer.text("Faces: ${smoothedFaces.size} (raw: ${detectedFaces.size})", 20.0, 50.0)
                 drawer.text("Landmarks per face: 68", 20.0, 70.0)
                 drawer.text("FPS: ${frameCount / seconds}", 20.0, 90.0)
 
