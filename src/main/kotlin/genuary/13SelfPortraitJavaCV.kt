@@ -71,7 +71,7 @@ fun main() = application {
 
         // Load static image
         println("Loading image from data/images/face-04.jpg")
-        val sourceImage = loadImage("data/images/face-04.jpg")
+        val sourceImage = loadImage("data/images/face-01.jpg")
         println("Image loaded: ${sourceImage.width}x${sourceImage.height}")
 
         // Calculate scaling to fit image in window
@@ -360,6 +360,7 @@ private fun downloadCascade(dataDir: File, filename: String, url: String): File 
 
 /**
  * Converts an OPENRNDR ColorBuffer to a JavaCV Mat
+ * Flips vertically because OPENRNDR data is bottom-left origin, OpenCV expects top-left
  */
 private fun colorBufferToJavaCVMat(colorBuffer: ColorBuffer): Mat {
     val width = colorBuffer.width
@@ -378,11 +379,17 @@ private fun colorBufferToJavaCVMat(colorBuffer: ColorBuffer): Mat {
     val rgbMat = Mat()
     opencv_imgproc.cvtColor(mat, rgbMat, opencv_imgproc.COLOR_RGBA2RGB)
 
-    return rgbMat
+    // Flip vertically so OpenCV sees the image right-side up
+    val flippedMat = Mat()
+    opencv_core.flip(rgbMat, flippedMat, 0)  // 0 = flip around x-axis (vertical flip)
+    rgbMat.release()
+
+    return flippedMat
 }
 
 /**
  * Converts a JavaCV Mat (grayscale or RGB) to an OPENRNDR ColorBuffer
+ * Flips Y axis since OpenCV uses top-left origin, OPENRNDR uses bottom-left
  */
 private fun javaCVMatToColorBuffer(mat: Mat, width: Int, height: Int): ColorBuffer {
     val colorBuffer = org.openrndr.draw.colorBuffer(width, height)
@@ -393,6 +400,9 @@ private fun javaCVMatToColorBuffer(mat: Mat, width: Int, height: Int): ColorBuff
 
     for (y in 0 until height) {
         for (x in 0 until width) {
+            // Flip Y: OpenCV row 0 should appear at bottom in OPENRNDR
+            val flippedY = height - 1 - y
+
             val value = if (channels == 1) {
                 // Grayscale
                 val gray = (indexer.get(y.toLong(), x.toLong(), 0) and 0xFF) / 255.0
@@ -404,7 +414,7 @@ private fun javaCVMatToColorBuffer(mat: Mat, width: Int, height: Int): ColorBuff
                 val b = (indexer.get(y.toLong(), x.toLong(), 2) and 0xFF) / 255.0
                 ColorRGBa(r, g, b, 1.0)
             }
-            shadow[x, y] = value
+            shadow[x, flippedY] = value
         }
     }
 
