@@ -73,8 +73,8 @@ fun main() = application {
         println("Facemark model loaded successfully")
 
         // Load static image
-        println("Loading image from data/images/face-01.jpg")
-        val sourceImage = loadImage("data/images/face-01.jpg")
+        println("Loading image from data/images/face-04.jpg")
+        val sourceImage = loadImage("data/images/face-04.jpg")
         println("Image loaded: ${sourceImage.width}x${sourceImage.height}")
 
         // Calculate scaling to fit image in window
@@ -112,9 +112,9 @@ fun main() = application {
             faces,
             1.05,  // Lower scale factor for more thorough detection
             2,     // Lower min neighbors for more permissive detection
-            opencv_objdetect.CASCADE_FIND_BIGGEST_OBJECT,
+            opencv_objdetect.CASCADE_SCALE_IMAGE,
             Size(50, 50),  // Larger min size for closeup faces
-            Size()
+            Size(1200, 1200)
         )
 
         println("Detected ${faces.size()} face(s)")
@@ -295,7 +295,7 @@ fun main() = application {
             drawer.text("Faces detected: ${detectedFaces.size}", 20.0, 30.0)
             drawer.text("Landmarks per face: 68", 20.0, 50.0)
             drawer.text("Method: JavaCV Facemark LBF", 20.0, 70.0)
-            drawer.text("Image: data/images/face-01.jpg", 20.0, 90.0)
+            drawer.text("Image: data/images/face-04.jpg", 20.0, 90.0)
         }
     }
 }
