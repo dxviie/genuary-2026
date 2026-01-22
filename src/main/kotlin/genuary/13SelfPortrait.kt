@@ -34,14 +34,14 @@ fun main() = application {
 
             // Create render target on first frame
             if (videoTarget == null && videoPlayer.width > 0 && videoPlayer.height > 0) {
-                videoTarget = renderTarget(videoPlayer.width, videoPlayer.height) {
+                videoTarget = renderTarget(videoPlayer.height, videoPlayer.width) {
                     colorBuffer()
                 }
                 println("Video initialized: ${videoPlayer.width}x${videoPlayer.height}")
             }
 
             videoTarget?.let { target ->
-                // Draw video to render target at native resolution
+                // Draw video to render target at native resolution (no rotation needed)
                 drawer.withTarget(target) {
                     drawer.clear(ColorRGBa.BLACK)
                     videoPlayer.draw(drawer)
@@ -52,6 +52,12 @@ fun main() = application {
                 val videoHeight = target.height.toDouble()
                 val windowWidth = width.toDouble()
                 val windowHeight = height.toDouble()
+
+                if (frameCount == 1) {
+                    println("Video dimensions: ${videoWidth}x${videoHeight}")
+                    println("Window dimensions: ${windowWidth}x${windowHeight}")
+                    println("Video aspect: ${videoWidth / videoHeight}, Window aspect: ${windowWidth / windowHeight}")
+                }
 
                 // Calculate aspect ratios
                 val videoAspect = videoWidth / videoHeight
@@ -80,9 +86,10 @@ fun main() = application {
                 // Draw with source and destination rectangles for proper scaling
                 drawer.image(
                     target.colorBuffer(0),
-                    Rectangle(0.0, 0.0, videoWidth, videoHeight),
-                    Rectangle(0.0, 0.0, windowWidth, windowHeight)   // destination (full window)
+                    Rectangle(sourceX, sourceY, sourceW, sourceH),  // crop from video
+                    Rectangle(0.0, 0.0, windowWidth, windowHeight)  // fill entire window
                 )
+//                drawer.image(target.colorBuffer(0))
             }
         }
     }
