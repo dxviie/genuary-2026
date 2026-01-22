@@ -2,14 +2,9 @@ package genuary
 
 import org.openrndr.application
 import org.openrndr.color.ColorRGBa
-import org.openrndr.draw.loadFont
-import org.openrndr.draw.loadImage
 import org.openrndr.draw.renderTarget
-import org.openrndr.extra.color.colormatrix.tint
 import org.openrndr.ffmpeg.VideoPlayerFFMPEG
-import kotlin.math.cos
-import kotlin.math.min
-import kotlin.math.sin
+import org.openrndr.shape.Rectangle
 
 fun main() = application {
     configure {
@@ -53,8 +48,8 @@ fun main() = application {
                 }
 
                 // Now scale the render target to fit the window with center crop
-                val videoWidth = target.height.toDouble()
-                val videoHeight = target.width.toDouble()
+                val videoWidth = target.width.toDouble()
+                val videoHeight = target.height.toDouble()
                 val windowWidth = width.toDouble()
                 val windowHeight = height.toDouble()
 
@@ -62,25 +57,32 @@ fun main() = application {
                 val videoAspect = videoWidth / videoHeight
                 val windowAspect = windowWidth / windowHeight
 
-                // Calculate scale to cover the window (may crop)
-                val scale = if (videoAspect > windowAspect) {
-                    // Video is wider - scale to height and crop sides
-                    windowHeight / videoHeight
+                // Calculate source crop region (what part of the video to use)
+                val sourceX: Double
+                val sourceY: Double
+                val sourceW: Double
+                val sourceH: Double
+
+                if (videoAspect > windowAspect) {
+                    // Video is wider - crop sides
+                    sourceH = videoHeight
+                    sourceW = videoHeight * windowAspect
+                    sourceX = (videoWidth - sourceW) / 2.0
+                    sourceY = 0.0
                 } else {
-                    // Video is taller - scale to width and crop top/bottom
-                    windowWidth / videoWidth
+                    // Video is taller - crop top/bottom
+                    sourceW = videoWidth
+                    sourceH = videoWidth / windowAspect
+                    sourceX = 0.0
+                    sourceY = (videoHeight - sourceH) / 2.0
                 }
 
-                // Calculate scaled dimensions
-                val scaledWidth = videoWidth * scale
-                val scaledHeight = videoHeight * scale
-
-                // Center the video
-                val offsetX = (windowWidth - scaledWidth) / 2.0
-                val offsetY = (windowHeight - scaledHeight) / 2.0
-
-                // Draw scaled video
-                drawer.image(target.colorBuffer(0), offsetX, offsetY, scaledWidth, scaledHeight)
+                // Draw with source and destination rectangles for proper scaling
+                drawer.image(
+                    target.colorBuffer(0),
+                    Rectangle(sourceX, sourceY, sourceW, sourceH),  // source region
+                    Rectangle(0.0, 0.0, windowWidth, windowHeight)   // destination (full window)
+                )
             }
         }
     }
