@@ -66,7 +66,7 @@ val orxFeatures = setOf<String>(
     "orx-svg",
 //  "orx-syphon",
 //  "orx-temporal-blur",
-//  "orx-tensorflow",
+//  "orx-tensorflow",  // Not needed without ORML
     "orx-text-writer",
 //  "orx-time-operators",
 //  "orx-timer",
@@ -80,7 +80,7 @@ val orxFeatures = setOf<String>(
 val ormlFeatures = setOf<String>(
 //    "orml-blazepose",
 //    "orml-dbface",
-//    "orml-facemesh",
+//    "orml-facemesh",  // Not available in Maven repos - using OpenCV instead
 //    "orml-image-classifier",
 //    "orml-psenet",
 //    "orml-ssd",
@@ -115,6 +115,7 @@ plugins {
 repositories {
     mavenCentral()
     mavenLocal()
+    maven(url = "https://maven.openrndr.org")
 }
 
 dependencies {
@@ -134,6 +135,9 @@ dependencies {
 //    implementation(libs.orsl.extension.sdf)
 
     implementation("org.jbox2d:jbox2d-library:2.2.1.1")
+
+    // OpenCV for face detection
+    implementation("org.openpnp:opencv:4.9.0-0")
 
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.serialization.core)
