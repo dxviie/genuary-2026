@@ -80,7 +80,7 @@ fun main() = application {
                 // Draw with source and destination rectangles for proper scaling
                 drawer.image(
                     target.colorBuffer(0),
-                    Rectangle(sourceX, sourceY, sourceW, sourceH),  // source region
+                    Rectangle(0.0, 0.0, videoWidth, videoHeight),
                     Rectangle(0.0, 0.0, windowWidth, windowHeight)   // destination (full window)
                 )
             }
