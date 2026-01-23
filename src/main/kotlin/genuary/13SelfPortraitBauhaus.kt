@@ -463,4 +463,6 @@ fun renderBauhausFaceDetection(
         BauhausRenderer.renderLeftEye(drawer, face.landmarks)
         BauhausRenderer.renderMouth(drawer, face.landmarks)
     }
+    drawer.text("Bauhaus", 170.0, 200.0)
+    drawer.text("Clown", 250.0, 1100.0)
 }

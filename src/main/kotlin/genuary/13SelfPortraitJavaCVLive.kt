@@ -11,6 +11,7 @@ import org.bytedeco.javacpp.indexer.UByteIndexer
 import org.openrndr.application
 import org.openrndr.color.ColorRGBa
 import org.openrndr.draw.ColorBuffer
+import org.openrndr.draw.loadFont
 import org.openrndr.draw.renderTarget
 import org.openrndr.extra.fx.color.ChromaticAberration
 import org.openrndr.extra.fx.distort.Fisheye
@@ -111,6 +112,9 @@ fun main() = application {
             depthBuffer()
         }
 
+//        val font = loadFont("data/fonts/default.otf", 12.0)
+        val font = loadFont("data/fonts/Jost-VariableFont_wght.ttf", 200.0)
+
         // Screen recorder
         val recorder = ScreenRecorder().apply {
             outputToVideo = false
@@ -174,6 +178,8 @@ fun main() = application {
         var lastTime = 0.0
 
         extend {
+            drawer.fontMap = font
+
             // Calculate delta time
             val currentTime = seconds
             val deltaTime = if (lastTime == 0.0) 1.0 / 60.0 else currentTime - lastTime
