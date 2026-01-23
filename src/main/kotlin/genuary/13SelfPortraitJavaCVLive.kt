@@ -73,6 +73,7 @@ fun main() = application {
         // Initialize video player
         println("devices: ${VideoPlayerFFMPEG.listDeviceNames()}")
         val deviceName = "iPhoneForMojo Camera"
+//        val deviceName = "USB Camera VID"
         val videoPlayer = VideoPlayerFFMPEG.fromDevice(
             deviceName = deviceName,
             frameRate = 30.0
@@ -84,8 +85,9 @@ fun main() = application {
         var sourceCrop: Rectangle? = null
         var destRect: Rectangle? = null
 
-        // Debug mode: 1 = original, 2 = grayscale, 3 = equalized, 4 = custom render
+        // Debug mode: 1 = original, 2 = grayscale, 3 = equalized, 4 = custom render, 5 = Bauhaus render
         var debugMode = 1
+        var shouldRegenerateShapes = false
 
         // Store previous face data for smoothing and persistence
         var previousFaces = listOf<DetectedFace>()
@@ -98,9 +100,10 @@ fun main() = application {
         val fisheye = Fisheye()
         var useEffects = false
 
-        // Create render target for post-processing
+        // Create render target for post-processing (with stencil for contour drawing)
         val postTarget = renderTarget(width, height) {
             colorBuffer()
+            depthBuffer()
         }
 
         // Screen recorder
@@ -128,6 +131,14 @@ fun main() = application {
                     debugMode = 4
                     println("Debug mode: $debugMode")
                 }
+                "5" -> {
+                    debugMode = 5
+                    println("Debug mode: $debugMode")
+                }
+                "r" -> {
+                    shouldRegenerateShapes = true
+                    println("Regenerating Bauhaus shapes...")
+                }
                 "e" -> {
                     useEffects = !useEffects
                     println("Effects: ${if (useEffects) "ON" else "OFF"}")
@@ -143,7 +154,9 @@ fun main() = application {
         println("  - Press 1: Original video")
         println("  - Press 2: Grayscale (before equalization)")
         println("  - Press 3: Histogram equalized (what detector sees)")
-        println("  - Press 4: Custom render mode")
+        println("  - Press 4: Custom render mode (particles)")
+        println("  - Press 5: Bauhaus render mode")
+        println("  - Press R: Regenerate Bauhaus shapes")
         println("  - Press E: Toggle post-processing effects (fisheye + chromatic aberration + video glitch + crosshatch)")
         println("  - Press V: Toggle screen recording")
 
@@ -320,8 +333,12 @@ fun main() = application {
 
                     // Draw based on mode
                 if (debugMode == 4) {
-                    // Mode 4: Custom render from separate file
+                    // Mode 4: Custom particle render
                     renderFaceDetection(drawer, smoothedFaces, destRect!!, deltaTime)
+                } else if (debugMode == 5) {
+                    // Mode 5: Bauhaus render
+                    renderBauhausFaceDetection(drawer, smoothedFaces, shouldRegenerateShapes)
+                    shouldRegenerateShapes = false // Reset regeneration flag
                 } else {
                     // Modes 1-3: Draw video with standard face detection overlay
                     drawer.image(
@@ -453,11 +470,12 @@ fun main() = application {
                     val modeText = when (debugMode) {
                         2 -> "Grayscale (pre-equalization)"
                         3 -> "Histogram Equalized (detection input)"
-                        4 -> "Custom Render"
+                        4 -> "Particle Render"
+                        5 -> "Bauhaus Render"
                         else -> "Original"
                     }
 
-                    drawer.text("Debug Mode: $modeText (press 1/2/3/4)", 20.0, 30.0)
+                    drawer.text("Debug Mode: $modeText (press 1/2/3/4/5)", 20.0, 30.0)
                     drawer.text("Effects: ${if (useEffects) "ON" else "OFF"} (press E)", 20.0, 50.0)
                     drawer.text("Faces: ${smoothedFaces.size} (raw: ${detectedFaces.size})", 20.0, 70.0)
                     drawer.text("Landmarks per face: 68", 20.0, 90.0)
