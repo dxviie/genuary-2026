@@ -41,6 +41,7 @@ object BauhausPalettes {
  * Facial feature groups
  */
 enum class FacialFeature {
+    HEAD,  // Overall head bounding box
     JAW,
     RIGHT_EYEBROW,
     LEFT_EYEBROW,
@@ -49,6 +50,20 @@ enum class FacialFeature {
     LEFT_EYE,
     MOUTH
 }
+
+/**
+ * Off-white background color for Bauhaus style
+ */
+val bauhausBackground = ColorRGBa.fromHex(0xF5F5DC) // Beige/cream off-white
+
+/**
+ * Slightly darker color for head shape (darker than background)
+ */
+val headShapeColors = listOf(
+    ColorRGBa.fromHex(0xE8E8D0),
+    ColorRGBa.fromHex(0xD8D8C0),
+    ColorRGBa.fromHex(0xC8C8B0)
+)
 
 /**
  * Bauhaus shape types (without position - position calculated per frame)
@@ -122,11 +137,64 @@ object BauhausRenderer {
             else -> "Unknown"
         }}")
 
+        // Store shape types for symmetric features
+        var eyeShapeType: Int? = null
+        var eyebrowShapeType: Int? = null
+
         // Generate one shape for each facial feature
         for (feature in FacialFeature.values()) {
-            val shapeType = Random.nextInt(6) // 6 shape types now
-            val color = currentPalette.random()
-            val sizeFactor = Random.nextDouble(0.5, 1.0) // Limit to 50%-100% of facial feature size
+            // Determine shape type and parameters
+            val (shapeType, color, sizeFactor) = when (feature) {
+                FacialFeature.HEAD -> {
+                    Triple(
+                        Random.nextInt(3), // Circle, Square, or Rectangle for head
+                        headShapeColors.random(),
+                        Random.nextDouble(1.0, 1.3) // 100%-130% of head size
+                    )
+                }
+                FacialFeature.RIGHT_EYE -> {
+                    // Generate eye shape type once
+                    eyeShapeType = Random.nextInt(6)
+                    Triple(
+                        eyeShapeType!!,
+                        currentPalette.random(),
+                        Random.nextDouble(0.5, 1.0)
+                    )
+                }
+                FacialFeature.LEFT_EYE -> {
+                    // Use same shape type as right eye
+                    Triple(
+                        eyeShapeType ?: Random.nextInt(6),
+                        currentPalette.random(),
+                        Random.nextDouble(0.5, 1.0)
+                    )
+                }
+                FacialFeature.RIGHT_EYEBROW -> {
+                    // Generate eyebrow shape type once
+                    eyebrowShapeType = Random.nextInt(6)
+                    Triple(
+                        eyebrowShapeType!!,
+                        currentPalette.random(),
+                        Random.nextDouble(0.5, 1.0)
+                    )
+                }
+                FacialFeature.LEFT_EYEBROW -> {
+                    // Use same shape type as right eyebrow
+                    Triple(
+                        eyebrowShapeType ?: Random.nextInt(6),
+                        currentPalette.random(),
+                        Random.nextDouble(0.5, 1.0)
+                    )
+                }
+                else -> {
+                    Triple(
+                        Random.nextInt(6), // All shape types
+                        currentPalette.random(),
+                        Random.nextDouble(0.5, 1.0) // 50%-100% of facial feature size
+                    )
+                }
+            }
+
             val rotation = Random.nextDouble(0.0, 360.0)
 
             val shape = when (shapeType) {
@@ -181,6 +249,17 @@ object BauhausRenderer {
             println("  ${feature.name.replace('_', ' ')}: $shapeName (size: ${String.format("%.0f%%", sizeFactor * 100)})")
         }
         println("=================================\n")
+    }
+
+    /**
+     * Render head shape (overall face bounding box)
+     */
+    fun renderHead(drawer: Drawer, landmarks: List<Circle>) {
+        if (landmarks.isEmpty()) return
+        shapes[FacialFeature.HEAD]?.let { shape ->
+            val (center, size) = calculateBounds(landmarks)
+            renderShape(drawer, shape, center, size)
+        }
     }
 
     /**
@@ -372,8 +451,11 @@ fun renderBauhausFaceDetection(
             BauhausRenderer.generateShapes(face.landmarks)
         }
 
+        // Render head shape first (as background for face)
+        BauhausRenderer.renderHead(drawer, face.landmarks)
+
         // Render each facial feature
-        BauhausRenderer.renderJaw(drawer, face.landmarks)
+//        BauhausRenderer.renderJaw(drawer, face.landmarks)
         BauhausRenderer.renderRightEyebrow(drawer, face.landmarks)
         BauhausRenderer.renderLeftEyebrow(drawer, face.landmarks)
         BauhausRenderer.renderNose(drawer, face.landmarks)

@@ -16,6 +16,8 @@ import org.openrndr.extra.fx.color.ChromaticAberration
 import org.openrndr.extra.fx.distort.Fisheye
 import org.openrndr.extra.fx.distort.VideoGlitch
 import org.openrndr.extra.fx.dither.Crosshatch
+import org.openrndr.extra.fx.grain.FilmGrain
+import org.openrndr.extra.fx.color.ColorCorrection
 import org.openrndr.ffmpeg.VideoPlayerFFMPEG
 import org.openrndr.ffmpeg.ScreenRecorder
 import org.openrndr.shape.Circle
@@ -98,7 +100,10 @@ fun main() = application {
         val crosshatchDither = Crosshatch()
         val videoGlitch = VideoGlitch()
         val fisheye = Fisheye()
+        val filmGrain = FilmGrain()
+        val colorCorrection = ColorCorrection()
         var useEffects = false
+        var useRisoPrint = false
 
         // Create render target for post-processing (with stencil for contour drawing)
         val postTarget = renderTarget(width, height) {
@@ -143,6 +148,10 @@ fun main() = application {
                     useEffects = !useEffects
                     println("Effects: ${if (useEffects) "ON" else "OFF"}")
                 }
+                "b" -> {
+                    useRisoPrint = !useRisoPrint
+                    println("Riso Print Effect: ${if (useRisoPrint) "ON" else "OFF"}")
+                }
                 "v" -> {
                     recorder.outputToVideo = !recorder.outputToVideo
                     println(if (recorder.outputToVideo) "Recording" else "Paused")
@@ -157,7 +166,8 @@ fun main() = application {
         println("  - Press 4: Custom render mode (particles)")
         println("  - Press 5: Bauhaus render mode")
         println("  - Press R: Regenerate Bauhaus shapes")
-        println("  - Press E: Toggle post-processing effects (fisheye + chromatic aberration + video glitch + crosshatch)")
+        println("  - Press E: Toggle post-processing effects (video glitch + chromatic aberration)")
+        println("  - Press B: Toggle riso print effect (film grain + color shift)")
         println("  - Press V: Toggle screen recording")
 
         // Track time for delta calculation
@@ -329,7 +339,12 @@ fun main() = application {
 
                 // Render scene to target for post-processing
                 drawer.withTarget(postTarget) {
-                    drawer.clear(ColorRGBa.BLACK)
+                    // Use off-white background for Bauhaus mode
+                    if (debugMode == 5) {
+                        drawer.clear(bauhausBackground)
+                    } else {
+                        drawer.clear(ColorRGBa.BLACK)
+                    }
 
                     // Draw based on mode
                 if (debugMode == 4) {
@@ -437,9 +452,6 @@ fun main() = application {
                 // Apply post-processing effects and draw to screen
                 drawer.clear(ColorRGBa.BLACK)
                 if (useEffects) {
-                    // Apply fisheye distortion
-//
-
                     // Apply video glitch
                     videoGlitch.time = seconds
                     videoGlitch.amplitude = 0.05
@@ -455,10 +467,18 @@ fun main() = application {
                     // Apply chromatic aberration
                     chromaticAberration.aberrationFactor = 3.0
                     chromaticAberration.apply(postTarget.colorBuffer(0), postTarget.colorBuffer(0))
+                }
 
-//                    fisheye.apply(postTarget.colorBuffer(0), postTarget.colorBuffer(0))
-                    // Apply crosshatch dither
-//                    crosshatchDither.apply(postTarget.colorBuffer(0), postTarget.colorBuffer(0))
+                if (useRisoPrint) {
+                    // Apply film grain for texture
+                    filmGrain.time = seconds
+                    filmGrain.apply(postTarget.colorBuffer(0), postTarget.colorBuffer(0))
+
+                    // Apply color correction for riso print look
+                    colorCorrection.brightness = 0.05
+                    colorCorrection.contrast = 0.025
+                    colorCorrection.saturation = 0.25
+                    colorCorrection.apply(postTarget.colorBuffer(0), postTarget.colorBuffer(0))
                 }
                 drawer.image(postTarget.colorBuffer(0))
 
@@ -477,9 +497,10 @@ fun main() = application {
 
                     drawer.text("Debug Mode: $modeText (press 1/2/3/4/5)", 20.0, 30.0)
                     drawer.text("Effects: ${if (useEffects) "ON" else "OFF"} (press E)", 20.0, 50.0)
-                    drawer.text("Faces: ${smoothedFaces.size} (raw: ${detectedFaces.size})", 20.0, 70.0)
-                    drawer.text("Landmarks per face: 68", 20.0, 90.0)
-                    drawer.text("FPS: ${frameCount / seconds}", 20.0, 110.0)
+                    drawer.text("Riso Print: ${if (useRisoPrint) "ON" else "OFF"} (press B)", 20.0, 70.0)
+                    drawer.text("Faces: ${smoothedFaces.size} (raw: ${detectedFaces.size})", 20.0, 90.0)
+                    drawer.text("Landmarks per face: 68", 20.0, 110.0)
+                    drawer.text("FPS: ${frameCount / seconds}", 20.0, 130.0)
                 }
 
                 // Clean up
