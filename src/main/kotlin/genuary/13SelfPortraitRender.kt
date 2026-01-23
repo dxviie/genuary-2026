@@ -19,7 +19,7 @@ object EightiesPalette {
     val sunsetOrange = ColorRGBa.fromHex(0xFF7F50)
     val synthPurple = ColorRGBa.fromHex(0x9B59B6)
     val neonViolet = ColorRGBa.fromHex(0xBF40BF)
-    val wireframeWhite = ColorRGBa.fromHex(0xF0EDE8)
+    val wireframeWhite = ColorRGBa(0.941, 0.929, 0.910, 0.5)
 }
 
 /**
@@ -73,8 +73,8 @@ object ParticleSystem {
 
     fun spawn(position: Vector2, color: ColorRGBa) {
         val velocity = Vector2(
-            Random.nextDouble(-20.0, 20.0),
-            Random.nextDouble(-20.0, 20.0)
+            Random.nextDouble(-5.0, 5.0),
+            Random.nextDouble(-5.0, 5.0)
         )
         val lifetime = Random.nextDouble(2.0, 5.0)
 
@@ -336,7 +336,7 @@ fun renderFaceDetection(
             }
 
             // Spawn particle at landmark position (with some randomness to avoid all spawning at once)
-            if (Random.nextDouble() < 0.5) {  // 10% chance per landmark per frame
+            if (Random.nextDouble() < 0.85) {  // 10% chance per landmark per frame
                 ParticleSystem.spawn(landmark.center, color)
             }
             // Render each facial feature separately

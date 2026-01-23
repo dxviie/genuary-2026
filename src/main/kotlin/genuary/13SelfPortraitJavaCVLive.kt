@@ -17,6 +17,7 @@ import org.openrndr.extra.fx.distort.Fisheye
 import org.openrndr.extra.fx.distort.VideoGlitch
 import org.openrndr.extra.fx.dither.Crosshatch
 import org.openrndr.ffmpeg.VideoPlayerFFMPEG
+import org.openrndr.ffmpeg.ScreenRecorder
 import org.openrndr.shape.Circle
 import org.openrndr.shape.Rectangle
 import java.io.File
@@ -102,6 +103,13 @@ fun main() = application {
             colorBuffer()
         }
 
+        // Screen recorder
+        val recorder = ScreenRecorder().apply {
+            outputToVideo = false
+            frameRate = 30
+        }
+        extend(recorder)
+
         keyboard.keyDown.listen {
             when (it.name) {
                 "1" -> {
@@ -124,6 +132,10 @@ fun main() = application {
                     useEffects = !useEffects
                     println("Effects: ${if (useEffects) "ON" else "OFF"}")
                 }
+                "v" -> {
+                    recorder.outputToVideo = !recorder.outputToVideo
+                    println(if (recorder.outputToVideo) "Recording" else "Paused")
+                }
             }
         }
 
@@ -133,6 +145,7 @@ fun main() = application {
         println("  - Press 3: Histogram equalized (what detector sees)")
         println("  - Press 4: Custom render mode")
         println("  - Press E: Toggle post-processing effects (fisheye + chromatic aberration + video glitch + crosshatch)")
+        println("  - Press V: Toggle screen recording")
 
         // Track time for delta calculation
         var lastTime = 0.0
@@ -432,22 +445,24 @@ fun main() = application {
                 }
                 drawer.image(postTarget.colorBuffer(0))
 
-                // Display info
-                drawer.fill = ColorRGBa.WHITE
-                drawer.stroke = null
+                // Display info (hide when recording)
+                if (!recorder.outputToVideo) {
+                    drawer.fill = ColorRGBa.WHITE
+                    drawer.stroke = null
 
-                val modeText = when (debugMode) {
-                    2 -> "Grayscale (pre-equalization)"
-                    3 -> "Histogram Equalized (detection input)"
-                    4 -> "Custom Render"
-                    else -> "Original"
+                    val modeText = when (debugMode) {
+                        2 -> "Grayscale (pre-equalization)"
+                        3 -> "Histogram Equalized (detection input)"
+                        4 -> "Custom Render"
+                        else -> "Original"
+                    }
+
+                    drawer.text("Debug Mode: $modeText (press 1/2/3/4)", 20.0, 30.0)
+                    drawer.text("Effects: ${if (useEffects) "ON" else "OFF"} (press E)", 20.0, 50.0)
+                    drawer.text("Faces: ${smoothedFaces.size} (raw: ${detectedFaces.size})", 20.0, 70.0)
+                    drawer.text("Landmarks per face: 68", 20.0, 90.0)
+                    drawer.text("FPS: ${frameCount / seconds}", 20.0, 110.0)
                 }
-
-                drawer.text("Debug Mode: $modeText (press 1/2/3/4)", 20.0, 30.0)
-                drawer.text("Effects: ${if (useEffects) "ON" else "OFF"} (press E)", 20.0, 50.0)
-                drawer.text("Faces: ${smoothedFaces.size} (raw: ${detectedFaces.size})", 20.0, 70.0)
-                drawer.text("Landmarks per face: 68", 20.0, 90.0)
-                drawer.text("FPS: ${frameCount / seconds}", 20.0, 110.0)
 
                 // Clean up
                 mat.release()
