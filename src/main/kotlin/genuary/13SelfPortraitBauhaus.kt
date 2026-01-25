@@ -120,7 +120,21 @@ sealed class BauhausShape {
  */
 object BauhausRenderer {
     private var shapes = mutableMapOf<FacialFeature, BauhausShape>()
-    private var currentPalette = BauhausPalettes.classic
+    var currentPalette = BauhausPalettes.classic
+
+    /**
+     * Helper function to get a color different from the given color
+     */
+    private fun getContrastingColor(palette: List<ColorRGBa>, avoidColor: ColorRGBa?): ColorRGBa {
+        if (avoidColor == null || palette.size <= 1) return palette.random()
+
+        val availableColors = palette.filter { it != avoidColor }
+        return if (availableColors.isNotEmpty()) {
+            availableColors.random()
+        } else {
+            palette.random()
+        }
+    }
 
     /**
      * Generate Bauhaus shapes for each facial feature
@@ -137,9 +151,14 @@ object BauhausRenderer {
             else -> "Unknown"
         }}")
 
-        // Store shape types for symmetric features
+        // Store shape types and colors for symmetric features and contrast requirements
         var eyeShapeType: Int? = null
         var eyebrowShapeType: Int? = null
+        var eyeColor: ColorRGBa? = null
+        var eyebrowColor: ColorRGBa? = null
+        var mouthColor: ColorRGBa? = null
+        var jawColor: ColorRGBa? = null
+        var noseColor: ColorRGBa? = null
 
         // Generate one shape for each facial feature
         for (feature in FacialFeature.values()) {
@@ -152,45 +171,67 @@ object BauhausRenderer {
                         Random.nextDouble(1.0, 1.3) // 100%-130% of head size
                     )
                 }
+                FacialFeature.MOUTH -> {
+                    // Generate mouth first to ensure contrast with jaw and nose
+                    mouthColor = currentPalette.random()
+                    Triple(
+                        Random.nextInt(6),
+                        mouthColor!!,
+                        Random.nextDouble(0.5, 1.0)
+                    )
+                }
+                FacialFeature.JAW -> {
+                    // Ensure contrast with mouth
+                    jawColor = getContrastingColor(currentPalette, mouthColor)
+                    Triple(
+                        Random.nextInt(6),
+                        jawColor!!,
+                        Random.nextDouble(0.5, 1.0)
+                    )
+                }
+                FacialFeature.NOSE -> {
+                    // Ensure contrast with mouth
+                    noseColor = getContrastingColor(currentPalette, mouthColor)
+                    Triple(
+                        Random.nextInt(6),
+                        noseColor!!,
+                        Random.nextDouble(0.5, 1.0)
+                    )
+                }
                 FacialFeature.RIGHT_EYE -> {
-                    // Generate eye shape type once
+                    // Generate eye shape type and color once
                     eyeShapeType = Random.nextInt(6)
+                    eyeColor = currentPalette.random()
                     Triple(
                         eyeShapeType!!,
-                        currentPalette.random(),
+                        eyeColor!!,
                         Random.nextDouble(0.5, 1.0)
                     )
                 }
                 FacialFeature.LEFT_EYE -> {
-                    // Use same shape type as right eye
+                    // Use same shape type and color as right eye
                     Triple(
                         eyeShapeType ?: Random.nextInt(6),
-                        currentPalette.random(),
+                        eyeColor ?: currentPalette.random(),
                         Random.nextDouble(0.5, 1.0)
                     )
                 }
                 FacialFeature.RIGHT_EYEBROW -> {
-                    // Generate eyebrow shape type once
+                    // Generate eyebrow shape type and color once
                     eyebrowShapeType = Random.nextInt(6)
+                    eyebrowColor = currentPalette.random()
                     Triple(
                         eyebrowShapeType!!,
-                        currentPalette.random(),
+                        eyebrowColor!!,
                         Random.nextDouble(0.5, 1.0)
                     )
                 }
                 FacialFeature.LEFT_EYEBROW -> {
-                    // Use same shape type as right eyebrow
+                    // Use same shape type and color as right eyebrow
                     Triple(
                         eyebrowShapeType ?: Random.nextInt(6),
-                        currentPalette.random(),
+                        eyebrowColor ?: currentPalette.random(),
                         Random.nextDouble(0.5, 1.0)
-                    )
-                }
-                else -> {
-                    Triple(
-                        Random.nextInt(6), // All shape types
-                        currentPalette.random(),
-                        Random.nextDouble(0.5, 1.0) // 50%-100% of facial feature size
                     )
                 }
             }
@@ -455,7 +496,7 @@ fun renderBauhausFaceDetection(
         BauhausRenderer.renderHead(drawer, face.landmarks)
 
         // Render each facial feature
-//        BauhausRenderer.renderJaw(drawer, face.landmarks)
+        BauhausRenderer.renderJaw(drawer, face.landmarks)
         BauhausRenderer.renderRightEyebrow(drawer, face.landmarks)
         BauhausRenderer.renderLeftEyebrow(drawer, face.landmarks)
         BauhausRenderer.renderNose(drawer, face.landmarks)
@@ -463,6 +504,7 @@ fun renderBauhausFaceDetection(
         BauhausRenderer.renderLeftEye(drawer, face.landmarks)
         BauhausRenderer.renderMouth(drawer, face.landmarks)
     }
+    drawer.fill = BauhausRenderer.currentPalette[0]
     drawer.text("Bauhaus", 170.0, 200.0)
     drawer.text("Clown", 250.0, 1100.0)
 }
