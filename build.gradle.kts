@@ -340,6 +340,46 @@ class Openrndr {
 
 val openrndr = Openrndr()
 
+// ------------------------------------------------------------------------------------------------------------------ //
+// Website media: non-interactive renders of the sketches for the site in website/.
+// See src/main/kotlin/render/RenderSupport.kt and website/README.md.
+
+val siteRenderTasks = mapOf(
+    "renderSite00" to "render.Render00PtpxKt",
+    "renderSite02" to "render.Render02AnimationKt",
+    "renderSite05" to "render.Render05NoFontKt",
+    "renderSite12" to "render.Render12BoxesKt",
+    "renderSite13Hero" to "render.Render13HeroKt",
+    "renderSite13Bauhaus" to "render.Render13BauhausKt",
+)
+
+siteRenderTasks.forEach { (taskName, klass) ->
+    tasks.register<JavaExec>(taskName) {
+        group = "website"
+        description = "Renders $klass into website/media-raw/"
+        mainClass = klass
+        classpath = sourceSets["main"].runtimeClasspath
+        workingDir = projectDir
+        if (OperatingSystem.current().isMacOsX) {
+            jvmArgs("-XstartOnFirstThread")
+        }
+    }
+}
+
+tasks.register("renderSiteMedia") {
+    group = "website"
+    description = "Renders all website media into website/media-raw/ (follow with optimizeSiteMedia)"
+    dependsOn(siteRenderTasks.keys)
+}
+
+tasks.register<Exec>("optimizeSiteMedia") {
+    group = "website"
+    description = "Compresses website/media-raw/ into website/static/ loops and stills (requires ffmpeg)"
+    commandLine("bash", "website/scripts/optimize-media.sh")
+}
+
+// ------------------------------------------------------------------------------------------------------------------ //
+
 if (properties["openrndr.tasks"] == "true") {
     tasks.register("create executable jar for $applicationMainClass") {
         group = " \uD83E\uDD8C OPENRNDR"

@@ -64,3 +64,19 @@ any time a commit is tagged with a version number like `v1.*`. For example, we c
     ```
 
     You can follow the progress of the action under the Actions tab in GitHub. Once complete, the executables will appear under the Releases section.
+
+## Website
+
+The [`website/`](website) folder contains a SvelteKit site showing recorded output of
+these sketches, in the same spirit as [genuary-2025](https://github.com/dxviie/genuary-2025).
+Because the sketches are JVM/OpenGL programs they can't run in the browser; instead each
+prompt has a scripted, seeded render variant in [`src/main/kotlin/render/`](src/main/kotlin/render)
+that replays the interaction and records the clips the site serves.
+
+```bash
+./gradlew renderSiteMedia     # render all clips (raw, into website/media-raw/)
+./gradlew optimizeSiteMedia   # compress into website/static/ (needs ffmpeg)
+cd website && npm install && npm run dev
+```
+
+See [website/README.md](website/README.md) for the full workflow and Cloudflare Pages deployment.

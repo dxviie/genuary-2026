@@ -1,0 +1,38 @@
+---
+	layout: entry
+---
+
+<script>
+	import VideoLoop from '$lib/VideoLoop.svelte';
+	import SourceLink from '$lib/SourceLink.svelte';
+</script>
+
+# Boxes only
+
+<small>Genuary 2026, day 12 — prompt by Stranger in the Q</small>
+
+<VideoLoop src="/12/loop.mp4" poster="/12/poster.jpg" label="A large box repeatedly splitting into four smaller boxes that tumble around" />
+
+One box. Click it (or anywhere) and it splits into four quarter-size boxes that
+inherit their parent's velocity and tint, get kicked outwards, and tumble around
+a zero-gravity room until they are too small to split. Nothing on screen but
+axis-misaligned rectangles — boxes only. Each run picks one of eight dark/bright
+palettes and every child box drifts a few percent away from its parent's color,
+so the swarm slowly becomes a texture.
+
+```kotlin
+fun splitBox(box: Box) {
+    val newSize = box.size / 2.0
+    world.destroyBody(box.body)
+    for (localOffset in quadrantOffsets(newSize)) {
+        val rotatedOffset = localOffset.rotatedBy(box.body.angle)
+        val newBox = createBox(centerPos + rotatedOffset, newSize, tintColor(box.color))
+        newBox.body.applyLinearImpulse(rotatedOffset.normalized * randomForce(), newBox.body.worldCenter)
+        newBox.body.linearVelocity = box.body.linearVelocity * 0.5f
+    }
+}
+```
+
+<SourceLink file="genuary/12BoxesOnly.kt" />
+
+Made with [OPENRNDR](https://openrndr.org) + JBox2D. Page clip: `render/Render12Boxes.kt`.

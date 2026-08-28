@@ -1,0 +1,46 @@
+---
+	layout: entry
+---
+
+<script>
+	import VideoLoop from '$lib/VideoLoop.svelte';
+	import SourceLink from '$lib/SourceLink.svelte';
+</script>
+
+# PTPX 2026
+
+<small>Warm-up before Genuary: a softbody take on my postcard design for the plotter postcard exchange (#ptpx).</small>
+
+<VideoLoop src="/00/loop.mp4" poster="/00/poster.jpg" label="Softbody shapes from the PTPX postcard SVG, wobbling on a vibrant gradient" />
+
+The postcard design is an SVG. Every closed contour in it is sampled into a ring
+of tiny circles connected by spring joints — a soft body simulated with
+[JBox2D](https://github.com/jbox2d/jbox2d). On top of that, random lines are shot
+across the scene; wherever a line enters and exits the shapes, extra springs are
+created, tying the composition together with the white connection lines you see.
+There is no gravity, only tiny random impulses, so the whole postcard just...
+breathes. The background is a shader interpolating a handful of gradient points
+in saturated print-adjacent colors, and the four heavy white frames are the A6
+quadrants used for plotting.
+
+```kotlin
+// shoot random lines across the scene; where a line crosses the shapes,
+// pair up the intersections and connect them with springs
+for (lineAttempt in 0 until settings.numConnectionLines * 2) {
+    if (jointsCreated >= settings.maxInterShapeJoints) break
+    val angle = Random.nextDouble(0.0, PI * 2.0)
+    // ... find intersections with every softbody edge ...
+    if (intersections.size % 2 != 0) continue
+    intersections.sortBy { (it.point - lineStart).length }
+    for (pairIdx in 0 until intersections.size / 2) {
+        val joint = createSpringJoint(world, body1, body2,
+            frequency = settings.interShapeFrequency.toFloat(),
+            damping = settings.interShapeDamping.toFloat())
+    }
+}
+```
+
+<SourceLink file="genuary/00PTPX2026.kt" />
+
+Made with [OPENRNDR](https://openrndr.org). The clip on this page is the scripted
+render variant (`render/Render00Ptpx.kt`), recorded with orx ScreenRecorder.

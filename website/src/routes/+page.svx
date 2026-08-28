@@ -1,0 +1,69 @@
+<script lang="ts">
+	import ImageDisplay from '$lib/ImageDisplay.svelte';
+
+	const images00 = [
+	{file: '/00/still-1.png', alt: 'PTPX 2026: softbody postcard shapes on a vibrant gradient'},
+	{file: '/00/still-2.png', alt: 'PTPX 2026: shapes drifting, tied together with white lines'},
+	{file: '/00/still-3.png', alt: 'PTPX 2026: wobbling composition in four plot frames'},
+	];
+	const images02 = [
+	{file: '/02/still-1.png', alt: 'Prompt 02: pastel softbody blobs mid-flight'},
+	{file: '/02/still-2.png', alt: 'Prompt 02: blobs squashing and stretching on the floor'},
+	{file: '/02/still-3.png', alt: 'Prompt 02: a pile of jelly-like blobs'},
+	];
+	const images05 = [
+	{file: '/05/still-1.png', alt: 'Prompt 05: wobbly letters spelling GENUARY'},
+	{file: '/05/still-2.png', alt: 'Prompt 05: letterforms with confetti bursting'},
+	{file: '/05/still-3.png', alt: 'Prompt 05: GENUARY settled on the floor'},
+	];
+	const images12 = [
+	{file: '/12/still-1.png', alt: 'Prompt 12: a large box split into smaller boxes'},
+	{file: '/12/still-2.png', alt: 'Prompt 12: boxes tumbling over each other'},
+	{file: '/12/still-3.png', alt: 'Prompt 12: many tiny boxes settling'},
+	];
+	const images13 = [
+	{file: '/13/still-1.png', alt: 'Prompt 13: neon wireframe self portrait with particles'},
+	{file: '/13/still-2.png', alt: 'Prompt 13: particles drifting off facial landmarks'},
+	{file: '/13/still-3.png', alt: 'Prompt 13: Bauhaus shapes forming a face'},
+	];
+</script>
+
+**00 PTPX 2026** <small>- warm-up: softbody postcard for the plotter postcard exchange</small>
+
+<ImageDisplay images={images00} />
+
+[View entry](/prompt/00)
+
+------
+
+**02 Twelve principles of animation** <small>- (credit: Anna Lucia)</small>
+
+<ImageDisplay images={images02} />
+
+[View entry](/prompt/02)
+
+------
+
+**05 Write "Genuary". Avoid using a font.** <small>- (credit: Piero)</small>
+
+<ImageDisplay images={images05} />
+
+[View entry](/prompt/05)
+
+------
+
+**12 Boxes only** <small>- (credit: Stranger in the Q)</small>
+
+<ImageDisplay images={images12} />
+
+[View entry](/prompt/12)
+
+------
+
+**13 Self portrait** <small>- (credit: Jos Vromans)</small>
+
+<ImageDisplay images={images13} />
+
+[View entry](/prompt/13)
+
+------

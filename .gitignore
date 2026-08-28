@@ -15,3 +15,7 @@ ShaderError.glsl
 *.dylib
 *.so
 *.dll
+# Website
+website/media-raw/
+website/node_modules/
+website/.svelte-kit/

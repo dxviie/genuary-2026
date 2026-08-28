@@ -1,0 +1,43 @@
+---
+	layout: entry
+---
+
+<script>
+	import VideoLoop from '$lib/VideoLoop.svelte';
+	import SourceLink from '$lib/SourceLink.svelte';
+</script>
+
+# Twelve principles of animation
+
+<small>Genuary 2026, day 02 — prompt by Anna Lucia</small>
+
+<VideoLoop src="/02/loop.mp4" poster="/02/poster.jpg" label="Pastel softbody blobs launched into the air, squashing and stretching as they land" />
+
+Squash and stretch, the first principle of animation, done by a physics engine
+instead of an animator. Noisy circular blobs become soft bodies: each outline
+point is a small JBox2D circle, chained to its neighbors with spring joints and
+cross-braced with softer diagonal springs so the blob holds its shape — barely.
+Launched upwards, they arc (anticipation! follow-through!), splat on the floor
+and jiggle themselves back to rest.
+
+In the interactive sketch you can also draw your own shapes point by point,
+drag blobs around and throw them; the clip above is the scripted version that
+just keeps pressing the "Create Blob" button.
+
+```kotlin
+fun generateBlob(): List<Vector2> {
+    val points = mutableListOf<Vector2>()
+    for (i in 0 until blobSegments - 1) {
+        val angle = (i.toDouble() / (blobSegments - 1)) * 2.0 * PI
+        // sample simplex noise on a circle for a smooth, closed deformation
+        val noiseValue = simplex(noiseSeed, Vector2(cos(angle) * 5.0, sin(angle) * 5.0))
+        val radius = blobRadius + noiseValue * blobNoiseFactor
+        points.add(Vector2(centerX + cos(angle) * radius, centerY + sin(angle) * radius))
+    }
+    return points
+}
+```
+
+<SourceLink file="genuary/02PrinciplesOfAnimation.kt" />
+
+Made with [OPENRNDR](https://openrndr.org) + JBox2D. Page clip: `render/Render02Animation.kt`.

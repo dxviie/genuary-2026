@@ -1,0 +1,47 @@
+---
+	layout: entry
+---
+
+<script>
+	import VideoLoop from '$lib/VideoLoop.svelte';
+	import SourceLink from '$lib/SourceLink.svelte';
+</script>
+
+# Self portrait
+
+<small>Genuary 2026, day 13 — prompt by Jos Vromans</small>
+
+<VideoLoop src="/13/hero.mp4" poster="/13/hero-poster.jpg" label="Neon wireframe self portrait: 68 facial landmarks with particles drifting off them" />
+
+A self portrait without showing the photo. OpenCV finds the face, then a
+Facemark LBF model fits 68 facial landmarks — jaw, eyebrows, nose, eyes,
+mouth. Those landmarks are all that reaches the screen: a wireframe in
+eighties neon, constantly shedding particles that drift off and fade, so the
+portrait is always dissolving and redrawing itself.
+
+This day turned into a whole family of experiments (six variants live in the
+repo): Haar-cascade rectangles, the 68-point debug view, a live webcam version
+— and the Bauhaus Clown, where every facial feature becomes a random Bauhaus
+shape that reshuffles itself:
+
+<VideoLoop src="/13/bauhaus.mp4" poster="/13/bauhaus-poster.jpg" label="Bauhaus Clown: facial features rendered as random Bauhaus shapes, reshuffling every few seconds" />
+
+```kotlin
+// haar cascade finds the face, facemark fits the 68 landmarks
+val faces = RectVector()
+faceCascade.detectMultiScale(grayMat, faces, 1.05, 2,
+    opencv_objdetect.CASCADE_SCALE_IMAGE, Size(50, 50), Size(1200, 1200))
+
+val landmarks = Point2fVectorVector()
+facemark.fit(grayMat, faces, landmarks)
+
+// landmarks 0-16: jaw · 17-26: eyebrows · 27-35: nose
+// 36-47: eyes · 48-67: mouth -> particles, shapes, anything but the photo
+```
+
+<SourceLink file="genuary/13SelfPortraitRender.kt" label="particle renderer: genuary/13SelfPortraitRender.kt" />
+<SourceLink file="genuary/13SelfPortraitBauhaus.kt" label="bauhaus renderer: genuary/13SelfPortraitBauhaus.kt" />
+<SourceLink file="genuary/13SelfPortraitJavaCV.kt" label="landmark detection: genuary/13SelfPortraitJavaCV.kt" />
+
+Made with [OPENRNDR](https://openrndr.org) + JavaCV/OpenCV. Page clips:
+`render/Render13Hero.kt` and `render/Render13Bauhaus.kt`.

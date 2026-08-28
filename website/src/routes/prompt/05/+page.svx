@@ -1,0 +1,39 @@
+---
+	layout: entry
+---
+
+<script>
+	import VideoLoop from '$lib/VideoLoop.svelte';
+	import SourceLink from '$lib/SourceLink.svelte';
+</script>
+
+# Write "Genuary". Avoid using a font.
+
+<small>Genuary 2026, day 05 — prompt by Piero</small>
+
+<VideoLoop src="/05/loop.mp4" poster="/05/poster.jpg" label="Wobbly softbody letters spelling GENUARY dropping onto the floor, with confetti" />
+
+No font, so the letters are drawn by hand: in the interactive sketch every click
+adds a point, closing the loop turns the points into a soft body — and suddenly
+your letterform is jelly fighting for its life under gravity. Same spring-ring
+construction as day 02, but here it has to keep seven letters legible while they
+fall, bounce and slump into each other. When the word survives, confetti
+(200 tiny physics bodies, also not a font).
+
+For the clip above the click-drawn outlines come from tracing tiny 5&times;7
+pixel-grid letters, so the render stays reproducible — still no font in sight.
+
+```kotlin
+// every softbody: outline points become circles chained with springs
+for (i in createdBodies.indices) {
+    val nextIndex = (i + 1) % createdBodies.size
+    edgeJoints.add(createSpringJoint(world, createdBodies[i], createdBodies[nextIndex],
+        frequency = 3f, damping = 0.7f))
+}
+// plus longer diagonal springs (skip 2, n/3, n/2) so the letter
+// wobbles instead of collapsing
+```
+
+<SourceLink file="genuary/05GenuaryWithoutFont.kt" />
+
+Made with [OPENRNDR](https://openrndr.org) + JBox2D. Page clip: `render/Render05NoFont.kt`.
