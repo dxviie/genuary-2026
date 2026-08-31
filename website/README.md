@@ -49,3 +49,6 @@ Pages live in `src/routes`: the homepage is `+page.svx`, each prompt is
    Custom domains tab.
 4. Analytics: create a new website entry in the umami dashboard and replace
    `REPLACE-WITH-GENUARY-2026-WEBSITE-ID` in `src/app.html` with its id.
+
+Once connected, Cloudflare Pages builds a preview deployment for every push to
+this branch and a production deployment for pushes to the default branch.
